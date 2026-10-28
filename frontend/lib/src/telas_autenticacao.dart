@@ -4,6 +4,8 @@ import 'telas_estudante.dart';
 import 'telas_professor.dart';
 import 'theme.dart';
 import 'widgets.dart';
+import 'graph_quiz_screen.dart';
+import 'services/api_service.dart';
 
 part 'telas/autenticacao/modelos_autenticacao.dart';
 part 'telas/autenticacao/tela_entrada.dart';

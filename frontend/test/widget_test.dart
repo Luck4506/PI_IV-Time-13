@@ -3,7 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:trilha/src/app.dart';
 import 'package:trilha/src/telas_estudante.dart';
 
+import 'api_test_support.dart';
+
 void main() {
+  setUp(configureTestApi);
   Future<void> abrir(
     WidgetTester tester, {
     bool professor = false,
@@ -18,6 +21,7 @@ void main() {
     if (professor) {
       await tocar(tester, find.text('Professor'));
     }
+    await fillTestLogin(tester);
     await tocar(tester, find.byKey(const Key('login-button')));
   }
 

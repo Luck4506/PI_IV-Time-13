@@ -1,0 +1,25 @@
+{
+  "name": "trilha-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node --env-file=.env src/server.js",
+    "dev": "node --env-file=.env --watch src/server.js",
+    "test": "node --test",
+    "db:init": "node --env-file=.env scripts/init.js",
+    "db:check": "node --env-file=.env scripts/check.js",
+    "db:inventory": "node --env-file=.env scripts/inventory.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.1.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.20.0",
+    "neo4j-driver": "^6.0.0",
+    "zod": "^4.1.0"
+  }
+}

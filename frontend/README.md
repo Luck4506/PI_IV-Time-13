@@ -6,7 +6,7 @@ Aplicativo Flutter do Projeto Integrador IV, Time 13. Versão inicial do front-e
 
 ```sh
 flutter pub get
-flutter run -d chrome
+flutter run -d chrome --web-port=5173 --dart-define=API_BASE_URL=http://127.0.0.1:3000
 flutter test
 flutter analyze
 flutter build web
@@ -14,22 +14,26 @@ flutter build web
 
 Também foram preservados os projetos Android, iOS, macOS, Linux e Windows. Cada plataforma requer seu ambiente de desenvolvimento; a integração foi validada com testes Flutter e compilação web. Os identificadores nativos `com.example.trilha` são provisórios para desenvolvimento.
 
+Inicie a API em `../backend/` antes do aplicativo. Veja o guia em `../backend/README.md`.
+
 ## Fluxos disponíveis
 
 - Login com escolha de estudante/professor, validação de e-mail e senha e saída que limpa a navegação anterior.
 - Cadastro com validação dos campos, consentimento inicialmente desmarcado e preservação do perfil escolhido.
-- Introdução, questões e resultado demonstrativo do diagnóstico.
+- Introdução ao diagnóstico e questões carregadas da API, com correção pelo grafo quando há gabarito.
 - Estudante: início, trilha, material, prática com correção e resumo, progresso, detalhes por disciplina e tópico, conquistas, notificações e perfil.
 - Professor: painel, busca local de turmas, detalhes da turma selecionada, detalhes de cada estudante, relatórios e perfil.
 - Marcação local das notificações como lidas e preferências visuais de perfil.
 
 ## Estado dos dados
 
-O login informa que o acesso ainda usa dados locais de exemplo. Login não autentica; cadastro não cria contas. Os nomes dos perfis continuam sendo Marina e Ana, independentemente dos campos preenchidos. Interações locais não persistem depois de reiniciar o app e algumas reiniciam ao sair da tela.
+Cadastro e autenticação persistem no MongoDB Atlas. A API retorna o perfil e o nome real da conta. O token permanece apenas em memória, e sair encerra as sessões da conta. Neste ambiente local, o cadastro de professor está habilitado para testes, além das contas fictícias já preparadas. O vínculo escolar ainda não é verificado; a configuração padrão para outras instalações desativa esse cadastro.
 
-Prática usa questões locais. Diagnóstico, percentuais, recomendações, alunos e relatórios usam exemplos do app original; responder ao diagnóstico não calcula uma trilha real. A seleção de turma atualiza identificação e indicadores, enquanto mapa de domínio e lista de estudantes ainda compartilham exemplos demonstrativos.
+Prática e diagnóstico consultam as questões do Neo4j Aura, sem perguntas fixas nas telas. A correção acontece no servidor e informa quando o grafo ainda não tem gabarito. Imagens referenciadas no grafo ainda exigem integração dos arquivos de mídia.
 
-Operações dependentes de serviços mostram um aviso de indisponibilidade; etapas bloqueadas da trilha continuam bloqueadas. Não há chamadas externas, credenciais, envio de e-mails ou autenticação Google.
+Percentuais, recomendações, alunos, turmas e relatórios continuam demonstrativos. As atividades não persistem respostas, não atribuem XP e não calculam uma trilha adaptativa real. A seleção de turma mantém os exemplos da versão anterior.
+
+Autenticação Google, recuperação de senha e preferências persistentes ainda estão pendentes. As senhas dos bancos ficam somente no backend; o aplicativo recebe um token de sessão.
 
 ## Organização
 
@@ -40,7 +44,9 @@ Operações dependentes de serviços mostram um aviso de indisponibilidade; etap
 - `lib/src/telas/professor/`: telas de professor e modelos de turmas/alunos.
 - `lib/src/theme.dart` e `widgets.dart`: identidade visual e componentes compartilhados.
 - `test/`: testes de navegação, formulários e comportamento local.
-- `docs/BACKEND.md`: pontos a integrar quando o back-end estiver disponível.
+- `lib/src/services/api_service.dart`: conexão HTTP, sessão e modelos de usuário.
+- `lib/src/graph_quiz_screen.dart`: questões e correção pela API.
+- `docs/BACKEND.md`: integração atual e pendências.
 
 Os arquivos de tela usam `part` e os arquivos `telas_autenticacao.dart`, `telas_estudante.dart` e `telas_professor.dart` são suas bibliotecas de entrada.
 

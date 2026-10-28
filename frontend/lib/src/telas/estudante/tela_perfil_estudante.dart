@@ -31,15 +31,18 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                 ],
               ),
               const SizedBox(height: 28),
-              const InitialAvatar(initials: 'MC', size: 86),
+              InitialAvatar(
+                initials: ApiService.instance.user?.initials ?? 'U',
+                size: 86,
+              ),
               const SizedBox(height: 12),
               Text(
-                'Marina Costa',
+                ApiService.instance.user?.name ?? 'Estudante',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 4),
               Text(
-                '3º ano do Ensino Médio',
+                ApiService.instance.user?.schoolYear ?? '',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 20),
@@ -144,13 +147,18 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                       icon: Icons.logout_rounded,
                       title: 'Sair',
                       color: AppColors.coral,
-                      onTap: () => Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute<void>(
-                          builder: (_) =>
-                              const LoginScreen(initialRole: UserRole.student),
-                        ),
-                        (_) => false,
-                      ),
+                      onTap: () async {
+                        await ApiService.instance.logout();
+                        if (!context.mounted) return;
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const LoginScreen(
+                              initialRole: UserRole.student,
+                            ),
+                          ),
+                          (_) => false,
+                        );
+                      },
                     ),
                   ],
                 ),

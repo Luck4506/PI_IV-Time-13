@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trilha/main.dart';
 
+import 'api_test_support.dart';
+
 void main() {
+  setUp(configureTestApi);
   Future<void> start(WidgetTester tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -24,7 +27,7 @@ void main() {
     await tester.enterText(find.byType(TextFormField).first, 'invalido');
     await tap(tester, find.byKey(const Key('login-button')));
     expect(find.text('Informe um e-mail válido.'), findsOneWidget);
-    expect(find.text('Bom dia, Marina!'), findsNothing);
+    expect(find.text('Olá, Marina!'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -32,8 +35,9 @@ void main() {
     tester,
   ) async {
     await start(tester);
+    await fillTestLogin(tester);
     await tap(tester, find.byKey(const Key('login-button')));
-    expect(find.text('Bom dia, Marina!'), findsOneWidget);
+    expect(find.text('Olá, Marina!'), findsOneWidget);
     await tap(tester, find.byIcon(Icons.notifications_none_rounded));
     await tap(tester, find.text('Marcar como lidas'));
     expect(
@@ -60,8 +64,9 @@ void main() {
   testWidgets('professor acessa a turma selecionada', (tester) async {
     await start(tester);
     await tap(tester, find.text('Professor'));
+    await fillTestLogin(tester);
     await tap(tester, find.byKey(const Key('login-button')));
-    expect(find.text('Olá, professora Ana'), findsOneWidget);
+    expect(find.text('Olá, Ana'), findsOneWidget);
     await tap(tester, find.text('Turmas'));
     await tester.enterText(find.byType(TextField), '3º B');
     await tester.pumpAndSettle();

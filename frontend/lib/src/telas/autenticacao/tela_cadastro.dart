@@ -13,6 +13,54 @@ class _RegisterScreenState extends State<RegisterScreen> {
   UserRole role = UserRole.student;
   bool accepted = false;
   final formKey = GlobalKey<FormState>();
+  final nameController = TextEditingController();
+  final emailController = TextEditingController();
+  final schoolController = TextEditingController();
+  final passwordController = TextEditingController();
+  bool loading = false;
+  String? error;
+
+  @override
+  void dispose() {
+    for (final controller in [
+      nameController,
+      emailController,
+      schoolController,
+      passwordController,
+    ]) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _register() async {
+    if (!accepted || !formKey.currentState!.validate()) return;
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      final user = await ApiService.instance.register(
+        name: nameController.text.trim(),
+        email: emailController.text.trim(),
+        password: passwordController.text,
+        role: role.name,
+        schoolField: schoolController.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        user.role == 'student'
+            ? DiagnosticIntroScreen.route
+            : TeacherShell.route,
+        (_) => false,
+      );
+    } on ApiException catch (e) {
+      if (mounted) setState(() => error = e.message);
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -60,11 +108,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ],
                     selected: {role},
                     showSelectedIcon: false,
-                    onSelectionChanged: (value) =>
-                        setState(() => role = value.first),
+                    onSelectionChanged: loading
+                        ? null
+                        : (value) => setState(() => role = value.first),
                   ),
                   const SizedBox(height: 22),
                   TextFormField(
+                    controller: nameController,
+                    enabled: !loading,
                     validator: validateRequired,
                     decoration: InputDecoration(
                       labelText: 'Nome completo',
@@ -73,6 +124,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
+                    controller: emailController,
+                    enabled: !loading,
                     validator: validateEmail,
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
@@ -82,6 +135,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
+                    controller: schoolController,
+                    enabled: !loading,
                     validator: role == UserRole.student
                         ? validateRequired
                         : null,
@@ -101,6 +156,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
+                    controller: passwordController,
+                    enabled: !loading,
                     validator: validatePassword,
                     obscureText: true,
                     decoration: InputDecoration(
@@ -111,8 +168,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 14),
                   CheckboxListTile(
                     value: accepted,
-                    onChanged: (value) =>
-                        setState(() => accepted = value ?? false),
+                    onChanged: loading
+                        ? null
+                        : (value) => setState(() => accepted = value ?? false),
                     controlAffinity: ListTileControlAffinity.leading,
                     contentPadding: EdgeInsets.zero,
                     title: const Text(
@@ -124,21 +182,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  if (error != null) ...[
+                    Text(
+                      error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   FilledButton(
-                    onPressed: accepted
-                        ? () {
-                            if (!formKey.currentState!.validate()) return;
-                            Navigator.pushNamedAndRemoveUntil(
-                              context,
-                              role == UserRole.student
-                                  ? DiagnosticIntroScreen.route
-                                  : TeacherShell.route,
-                              (route) => false,
-                            );
-                          }
-                        : null,
+                    onPressed: accepted && !loading ? _register : null,
                     child: Text(
-                      role == UserRole.student
+                      loading
+                          ? 'Criando conta…'
+                          : role == UserRole.student
                           ? 'Continuar e personalizar'
                           : 'Continuar',
                     ),

@@ -18,14 +18,17 @@ class TeacherDashboardScreen extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const InitialAvatar(initials: 'PA', color: AppColors.mint),
+                  InitialAvatar(
+                    initials: ApiService.instance.user?.initials ?? 'P',
+                    color: AppColors.mint,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Olá, professora Ana',
+                          'Olá, ${ApiService.instance.user?.firstName ?? 'professor'}',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const Text(

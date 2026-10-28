@@ -44,7 +44,7 @@ class DiagnosticIntroScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Este diagnóstico rápido identifica o que você já domina e onde vale concentrar energia.',
+                  'Responda às questões disponíveis para experimentar a atividade inicial.',
 
                   style: Theme.of(context).textTheme.bodyLarge
                       ?.copyWith(color: AppColors.muted),
@@ -57,13 +57,13 @@ class DiagnosticIntroScreen extends StatelessWidget {
                 ),
                 const _InfoRow(
                   icon: Icons.tune_rounded,
-                  title: 'Questões que se adaptam',
-                  subtitle: 'A dificuldade muda conforme suas respostas.',
+                  title: 'Uma questão por vez',
+                  subtitle: 'Leia com atenção e escolha uma alternativa.',
                 ),
                 const _InfoRow(
                   icon: Icons.lock_outline_rounded,
-                  title: 'Resultado só seu',
-                  subtitle: 'Usado para montar sua trilha inicial.',
+                  title: 'Confira suas respostas',
+                  subtitle: 'A correção aparece quando há gabarito disponível.',
                 ),
                 const SizedBox(height: 30),
                 FilledButton(

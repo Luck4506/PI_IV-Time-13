@@ -14,14 +14,41 @@ class _LoginScreenState extends State<LoginScreen> {
   late UserRole role = widget.initialRole;
   bool hidePassword = true;
   final formKey = GlobalKey<FormState>();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  bool loading = false;
+  String? error;
 
-  void _continue() {
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _continue() async {
     if (!formKey.currentState!.validate()) return;
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      role == UserRole.student ? StudentShell.route : TeacherShell.route,
-      (route) => false,
-    );
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      final user = await ApiService.instance.login(
+        email: emailController.text.trim(),
+        password: passwordController.text,
+        role: role.name,
+      );
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        user.role == 'student' ? StudentShell.route : TeacherShell.route,
+        (_) => false,
+      );
+    } on ApiException catch (e) {
+      if (mounted) setState(() => error = e.message);
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
   }
 
   @override
@@ -45,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Acesso local com dados de exemplo. Suas alterações ainda não são salvas.',
+                    'Entre com o e-mail e a senha da sua conta.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 26),
@@ -64,8 +91,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                     selected: {role},
                     showSelectedIcon: false,
-                    onSelectionChanged: (value) =>
-                        setState(() => role = value.first),
+                    onSelectionChanged: loading
+                        ? null
+                        : (value) => setState(() {
+                            role = value.first;
+                            error = null;
+                          }),
                     style: ButtonStyle(
                       visualDensity: VisualDensity.comfortable,
                       side: WidgetStateProperty.all(
@@ -82,9 +113,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextFormField(
                     key: ValueKey('email-${role.name}'),
                     validator: validateEmail,
-                    initialValue: role == UserRole.student
-                        ? 'marina@exemplo.com'
-                        : 'prof.ana@escola.com',
+                    controller: emailController,
+                    enabled: !loading,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
                       prefixIcon: Icon(Icons.mail_outline_rounded),
@@ -106,7 +136,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                   TextFormField(
-                    initialValue: '12345678',
+                    controller: passwordController,
+                    enabled: !loading,
                     validator: validatePassword,
                     obscureText: hidePassword,
                     decoration: InputDecoration(
@@ -123,10 +154,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 26),
+                  if (error != null) ...[
+                    Text(
+                      error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   FilledButton(
                     key: const Key('login-button'),
-                    onPressed: _continue,
-                    child: const Text('Entrar'),
+                    onPressed: loading ? null : _continue,
+                    child: Text(loading ? 'Entrando…' : 'Entrar'),
                   ),
                   const SizedBox(height: 14),
                   OutlinedButton.icon(

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'telas_autenticacao.dart';
 import 'theme.dart';
 import 'widgets.dart';
+import 'graph_quiz_screen.dart';
+import 'services/api_service.dart';
 
 part 'telas/estudante/area_estudante.dart';
 part 'telas/estudante/tela_inicio_estudante.dart';

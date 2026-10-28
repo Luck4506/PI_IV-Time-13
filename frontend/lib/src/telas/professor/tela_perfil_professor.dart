@@ -15,23 +15,25 @@ class TeacherProfileScreen extends StatelessWidget {
             children: [
               const AppMark(compact: true),
               const SizedBox(height: 28),
-              const InitialAvatar(
-                initials: 'PA',
+              InitialAvatar(
+                initials: ApiService.instance.user?.initials ?? 'P',
                 size: 86,
                 color: AppColors.mint,
               ),
               const SizedBox(height: 12),
               Text(
-                'Ana Ribeiro',
+                ApiService.instance.user?.name ?? 'Professor',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               Text(
-                'Professora de Matemática',
+                ApiService.instance.user?.email ?? '',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 6),
-              const TagChip(
-                label: 'Escola Horizonte',
+              TagChip(
+                label:
+                    ApiService.instance.user?.schoolCode ??
+                    'Escola não informada',
                 icon: Icons.apartment_rounded,
                 color: AppColors.mint,
               ),
@@ -81,13 +83,18 @@ class TeacherProfileScreen extends StatelessWidget {
                       icon: Icons.logout_rounded,
                       title: 'Sair',
                       color: AppColors.coral,
-                      onTap: () => Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute<void>(
-                          builder: (_) =>
-                              const LoginScreen(initialRole: UserRole.teacher),
-                        ),
-                        (_) => false,
-                      ),
+                      onTap: () async {
+                        await ApiService.instance.logout();
+                        if (!context.mounted) return;
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const LoginScreen(
+                              initialRole: UserRole.teacher,
+                            ),
+                          ),
+                          (_) => false,
+                        );
+                      },
                     ),
                   ],
                 ),

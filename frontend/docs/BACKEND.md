@@ -1,30 +1,25 @@
-# Integração futura com o back-end
+# Integração com a API
 
-As telas e rotas estão prontas para navegação com exemplos locais. Ainda não existe contrato de API neste repositório; nenhum endpoint foi inventado. A próxima etapa é definir os contratos e introduzir serviços/repositórios para substituir os dados demonstrativos.
+A API está em `../../backend/`. O Flutter usa `lib/src/services/api_service.dart`, com endereço configurável por `--dart-define=API_BASE_URL=...`. O padrão é `http://127.0.0.1:3000`.
 
-| Área | Situação atual | Integração necessária |
+| Área | Integração atual | Pendente |
 | --- | --- | --- |
-| Login/cadastro | Validação local e navegação por perfil | Autenticação, cadastro, erros, sessão, recuperação de senha e Google |
-| Perfil | Marina/Ana e preferências locais | Dados do usuário, edição, metas, avatar, consentimentos e persistência |
-| Diagnóstico | Perguntas locais e resultado fixo | Salvar respostas, calcular resultado e gerar trilha |
-| Trilha/material | Conteúdo e bloqueios de exemplo | Conteúdos, pré-requisitos, desbloqueio, favoritos e recomendações |
-| Prática | Seleção, correção e resumo locais | Banco de questões, envio de respostas, progresso, XP e adaptação |
-| Progresso/conquistas | Percentuais e medalhas de exemplo | Estatísticas, revisões, missões e recompensas reais |
-| Notificações | Lista e marcação de leitura locais | Busca, estado de leitura persistente e preferências |
-| Turmas | Busca local; identificação e indicadores por turma | Turmas reais, matrícula, criação, filtros, mapa e estudantes por turma |
-| Alunos | Perfis demonstrativos distintos | Desempenho individual, intervenções e acompanhamento |
-| Relatórios | Tela com indicadores de exemplo | Filtros, geração, exportação e compartilhamento |
+| Login/cadastro | Cadastro real no MongoDB, autenticação, erros, carregamento, sessão e logout | Recuperação de senha, Google, publicação dos termos reais e verificação escolar |
+| Perfil | Nome, e-mail, perfil e campo escolar retornados pela API | Formulário visual de edição; a API já oferece PATCH /api/usuarios/me |
+| Diagnóstico e prática | Questões do Neo4j e correção no servidor quando há gabarito | Persistência de tentativas, imagens, seleção adaptativa e geração de trilha |
+| Trilha/material | Telas de exemplo da versão anterior | Conteúdos e pré-requisitos reais, desbloqueio e favoritos |
+| Progresso/conquistas | Indicadores demonstrativos | Cálculo e persistência de estatísticas, XP e medalhas |
+| Notificações | Marcação local | Busca e preferências persistentes |
+| Turmas/alunos/relatórios | Exemplos da versão anterior | Dados reais, matrículas, permissões escolares e exportação |
 
-## Pontos de entrada no código
+## Separação dos bancos
 
-- `telas/autenticacao/tela_entrada.dart`: substituir `_continue` pela autenticação e tratar carregamento/erro antes de navegar.
-- `telas/autenticacao/tela_cadastro.dart`: enviar os dados validados, definir termos/política reais e só continuar após confirmação do serviço.
-- `telas/autenticacao/tela_questoes_diagnostico.dart` e `tela_resultado_diagnostico.dart`: enviar respostas e apresentar o resultado retornado.
-- `telas/estudante/dados_progresso_disciplinas.dart`: dados de disciplinas e tópicos.
-- `telas/professor/dados_turma.dart` e `tela_detalhes_estudante.dart`: modelos/exemplos de turma e estudante.
-- Demais indicadores e conteúdos ainda estão próximos das respectivas telas, como no projeto de origem. Extraí-los conforme os contratos forem definidos.
-- `widgets.dart`: `showPendingFeature` identifica ações ainda não integradas.
+MongoDB Atlas armazena somente cadastro e dados de autenticação de usuários. Questões, alternativas, gabaritos e relações de conteúdo ficam no Neo4j Aura. Nenhuma resposta de atividade é gravada no MongoDB.
 
-Ao conectar os serviços, implementar carregamento, lista vazia, erro e nova tentativa; atualizar os modelos conforme o contrato real; substituir nomes e indicadores fixos; vincular cada turma aos seus próprios alunos; testar permissões no servidor. Retirar o aviso de acesso local do login somente quando autenticação e persistência estiverem integradas.
+## Segurança e testes
 
-As rotas do front-end não são controle de autorização. A validação de senha é apenas local (mínimo de oito caracteres); alinhar as regras definitivas com o serviço. A aplicação atual não armazena senhas nem tokens.
+A API valida dados, protege senhas com scrypt, exige token nos endpoints de dados e não permite promover o próprio perfil via PATCH. O ambiente local permite cadastro de professor para testes; a configuração padrão de novas instalações o desativa. O campo de código escolar ainda não valida vínculo institucional.
+
+O token fica em memória; recarregar o navegador exige login novamente. O backend usa credenciais locais em .env, fora do Git. O Flutter não contém credenciais dos bancos.
+
+Os testes de interface usam uma API simulada. O script backend/scripts/smoke.js verifica os bancos reais, cria e remove uma conta fictícia temporária e confirma cadastro, login, perfil, logout, leitura do grafo e separação de coleções. O resultado fica em .local/VERIFICACAO.json.

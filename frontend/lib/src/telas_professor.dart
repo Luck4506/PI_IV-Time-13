@@ -4,6 +4,7 @@ import 'telas_autenticacao.dart';
 import 'telas_estudante.dart';
 import 'theme.dart';
 import 'widgets.dart';
+import 'services/api_service.dart';
 
 part 'telas/professor/area_professor.dart';
 part 'telas/professor/tela_painel_professor.dart';

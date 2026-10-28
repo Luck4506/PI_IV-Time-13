@@ -23,14 +23,16 @@ class StudentHomeScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const InitialAvatar(initials: 'MC'),
+                      InitialAvatar(
+                        initials: ApiService.instance.user?.initials ?? 'U',
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Bom dia, Marina!',
+                              'Olá, ${ApiService.instance.user?.firstName ?? 'estudante'}!',
                               style: Theme.of(context).textTheme.titleLarge,
                             ),
                             const Text(
