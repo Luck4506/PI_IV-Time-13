@@ -7,21 +7,29 @@ import { ObjectId } from 'mongodb';
 import neo4j from 'neo4j-driver';
 import { z } from 'zod';
 import { hashPassword, verifyPassword } from './security.js';
+import { schoolYearSchema, mountTrailRoutes, TrailError } from './trails.js';
 
 const email = z.string().trim().toLowerCase().email().max(254);
 const password = z.string().min(8).max(128);
 const registration = z.object({
   nome: z.string().trim().min(2).max(120), email, senha: password,
   perfil: z.enum(['student', 'teacher']),
-  anoEscolar: z.string().trim().min(1).max(60).optional(),
+  anoEscolar: schoolYearSchema.optional(),
+  cadastroEducacional: z.boolean().optional(),
   codigoEscola: z.string().trim().max(80).optional(), termosAceitos: z.literal(true),
 }).strict().refine(x => x.perfil !== 'student' || !!x.anoEscolar, {
   message: 'Informe o ano escolar.', path: ['anoEscolar'],
+}).refine(x => x.perfil !== 'teacher' || x.cadastroEducacional !== false, {
+  message: 'O cadastro de professor é sempre educacional.', path: ['cadastroEducacional'],
+}).refine(x => x.cadastroEducacional !== true || !!x.codigoEscola?.trim(), {
+  message: 'Selecione sua escola.', path: ['codigoEscola'],
+}).refine(x => x.cadastroEducacional !== false || !x.codigoEscola, {
+  message: 'Ative o cadastro educacional para selecionar uma escola.', path: ['codigoEscola'],
 });
 const login = z.object({ email, senha: password, perfil: z.enum(['student', 'teacher']).optional() }).strict();
 const profile = z.object({
   nome: z.string().trim().min(2).max(120).optional(),
-  anoEscolar: z.string().trim().min(1).max(60).optional(),
+  anoEscolar: schoolYearSchema.optional(),
   codigoEscola: z.string().trim().max(80).optional(),
 }).strict().refine(x => Object.keys(x).length > 0, 'Informe um campo para atualizar.');
 const pageSchema = z.object({
@@ -32,6 +40,7 @@ const publicUser = user => ({
   id: user._id.toString(), nome: user.nome, email: user.email, perfil: user.perfil,
   ...(user.anoEscolar ? { anoEscolar: user.anoEscolar } : {}),
   ...(user.codigoEscola ? { codigoEscola: user.codigoEscola } : {}),
+  cadastroEducacional: user.perfil === 'teacher' || !!user.codigoEscola,
   criadoEm: user.criadoEm,
 });
 function serialize(value) {
@@ -48,12 +57,37 @@ export function questionView(properties) {
   return serialize(Object.fromEntries(allowed.filter(k => properties[k] !== undefined).map(k => [k, properties[k]])));
 }
 
-export function createApp({ databases, config }) {
+export function createApp({ databases, config, databaseReady = () => true }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(helmet());
-  app.use(cors({ origin: config.CORS_ORIGINS.split(',').map(x => x.trim()) }));
+  const origins = config.CORS_ORIGINS.split(',').map(x => x.trim());
+  app.use(cors({ origin: origins, credentials: true }));
   app.use(express.json({ limit: '32kb' }));
+  const cookieName = 'trilha_session';
+  const cookieOptions = { httpOnly: true, sameSite: 'strict', secure: config.COOKIE_SECURE === 'true',
+    path: '/api', maxAge: 12 * 60 * 60 * 1000 };
+  const clearCookie = res => res.clearCookie(cookieName, { ...cookieOptions, maxAge: undefined });
+  const cookieToken = req => {
+    const value = req.headers.cookie?.split(';').map(x => x.trim()).find(x => x.startsWith(cookieName + '='));
+    try { return value ? decodeURIComponent(value.slice(cookieName.length + 1)) : null; }
+    catch { return null; }
+  };
+  app.use('/api', (req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    if (!databaseReady()) {
+      return res.status(503).json({ erro: 'Conexão com o banco indisponível. Aguarde e tente novamente.' });
+    }
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+      if (req.headers.origin && !origins.includes(req.headers.origin)) {
+        return res.status(403).json({ erro: 'Origem da solicitação não autorizada.' });
+      }
+      if (cookieToken(req) && !req.headers.authorization && req.headers['x-trilha-client'] !== 'app') {
+        return res.status(403).json({ erro: 'Solicitação inválida. Reabra o aplicativo e tente novamente.' });
+      }
+    }
+    next();
+  });
   const authLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30,
     standardHeaders: 'draft-8', legacyHeaders: false,
     message: { erro: 'Muitas tentativas. Aguarde alguns minutos.' } });
@@ -61,17 +95,27 @@ export function createApp({ databases, config }) {
     subject: user._id.toString(), expiresIn: '12h', algorithm: 'HS256',
     issuer: 'trilha-api', audience: 'trilha-app',
   });
+  const sessionResponse = (res, user, status = 200) => {
+    const token = issueToken(user);
+    res.cookie(cookieName, token, cookieOptions);
+    return res.status(status).json({ token, usuario: publicUser(user) });
+  };
   const auth = async (req, res, next) => {
-    const token = req.headers.authorization?.match(/^Bearer (\S+)$/)?.[1];
+    const token = req.headers.authorization
+      ? req.headers.authorization.match(/^Bearer (\S+)$/)?.[1] : cookieToken(req);
     if (!token) return res.status(401).json({ erro: 'Entre na sua conta para continuar.' });
     let payload;
     try {
       payload = jwt.verify(token, config.JWT_SECRET, { algorithms: ['HS256'], issuer: 'trilha-api', audience: 'trilha-app' });
       if (!ObjectId.isValid(payload.sub)) throw new Error('invalid subject');
-    } catch { return res.status(401).json({ erro: 'Sessão inválida ou expirada. Entre novamente.' }); }
+    } catch {
+      return res.status(401).json({ erro: 'Sessão inválida ou expirada. Entre novamente.' });
+    }
     try {
       const user = await databases.users.findOne({ _id: new ObjectId(payload.sub) });
-      if (!user || user.tokenVersion !== payload.v) return res.status(401).json({ erro: 'Sessão encerrada. Entre novamente.' });
+      if (!user || user.tokenVersion !== payload.v) {
+        return res.status(401).json({ erro: 'Sessão encerrada. Entre novamente.' });
+      }
       req.user = user;
       next();
     } catch (error) { next(error); }
@@ -79,6 +123,7 @@ export function createApp({ databases, config }) {
 
   app.get('/health/live', (_req, res) => res.json({ status: 'ok' }));
   app.get('/health/ready', async (_req, res) => {
+    if (!databaseReady()) return res.status(503).json({ status: 'indisponivel', mongodb: false, neo4j: false });
     const checks = await Promise.allSettled([
       databases.db.command({ ping: 1 }), databases.query('RETURN 1 AS ok'),
     ]);
@@ -97,10 +142,11 @@ export function createApp({ databases, config }) {
       senhaHash: await hashPassword(data.senha), termosAceitosEm: now,
       criadoEm: now, atualizadoEm: now, tokenVersion: 0,
       ...(data.perfil === 'student' ? { anoEscolar: data.anoEscolar } : {}),
-      ...(data.perfil === 'teacher' && data.codigoEscola ? { codigoEscola: data.codigoEscola } : {}),
+      ...((data.perfil === 'teacher' || data.cadastroEducacional === true) && data.codigoEscola
+        ? { codigoEscola: data.codigoEscola } : {}),
     };
     await databases.users.insertOne(user);
-    res.status(201).json({ token: issueToken(user), usuario: publicUser(user) });
+    sessionResponse(res, user, 201);
   });
   app.post('/api/auth/login', authLimit, async (req, res) => {
     const data = login.parse(req.body);
@@ -109,7 +155,7 @@ export function createApp({ databases, config }) {
     if (!user || !valid || (data.perfil && user.perfil !== data.perfil)) {
       return res.status(401).json({ erro: 'E-mail, senha ou perfil incorretos.' });
     }
-    res.json({ token: issueToken(user), usuario: publicUser(user) });
+    sessionResponse(res, user);
   });
   app.get('/api/usuarios/me', auth, (req, res) => res.json({ usuario: publicUser(req.user) }));
   app.patch('/api/usuarios/me', auth, async (req, res) => {
@@ -124,6 +170,7 @@ export function createApp({ databases, config }) {
   });
   app.post('/api/auth/logout', auth, async (req, res) => {
     await databases.users.updateOne({ _id: req.user._id }, { $inc: { tokenVersion: 1 } });
+    clearCookie(res);
     res.status(204).end();
   });
 
@@ -156,8 +203,10 @@ export function createApp({ databases, config }) {
     });
     res.json({ corrigida: true, correta: alternativa === gabarito, gabarito });
   });
+  mountTrailRoutes(app, auth, databases, questionView);
   app.use((_req, res) => res.status(404).json({ erro: 'Rota não encontrada.' }));
   app.use((error, _req, res, _next) => {
+    if (error instanceof TrailError) return res.status(error.status).json({ erro: error.message });
     if (error instanceof z.ZodError) return res.status(400).json({ erro: 'Revise os dados informados.', campos: error.issues.map(x => ({ campo: x.path.join('.'), mensagem: x.message })) });
     if (error.code === 11000) return res.status(409).json({ erro: 'Este e-mail já está cadastrado.' });
     if (error.type === 'entity.parse.failed') return res.status(400).json({ erro: 'JSON inválido.' });

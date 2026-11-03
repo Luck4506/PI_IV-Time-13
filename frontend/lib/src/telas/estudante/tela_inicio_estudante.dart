@@ -90,8 +90,8 @@ class StudentHomeScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
                   _RecommendationCard(
-                    title: 'Equações do 1º grau',
-                    detail: 'Prática guiada · 8 questões',
+                    title: 'Prática personalizada',
+                    detail: 'Continue sua trilha de conteúdos',
                     reason: 'Prioridade alta',
                     icon: Icons.calculate_outlined,
                     color: AppColors.coral,

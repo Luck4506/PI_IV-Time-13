@@ -12,12 +12,12 @@ class StudentShell extends StatefulWidget {
 class _StudentShellState extends State<StudentShell> {
   int index = 0;
 
-  late final pages = [
+  List<Widget> get pages => [
     StudentHomeScreen(
       onOpenTrail: () => setState(() => index = 1),
       onOpenProgress: () => setState(() => index = 2),
     ),
-    const LearningTrailScreen(),
+    LearningTrailScreen(active: index == 1),
     const ProgressScreen(),
     const RewardsScreen(),
     const StudentProfileScreen(),

@@ -84,7 +84,20 @@ class TeacherProfileScreen extends StatelessWidget {
                       title: 'Sair',
                       color: AppColors.coral,
                       onTap: () async {
-                        await ApiService.instance.logout();
+                        try {
+                          await ApiService.instance.logout();
+                        } on ApiException catch (error) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Não foi possível sair. ${error.message}',
+                                ),
+                              ),
+                            );
+                          }
+                          return;
+                        }
                         if (!context.mounted) return;
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute<void>(

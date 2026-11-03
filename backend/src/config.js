@@ -11,6 +11,7 @@ export function readConfig(env = process.env) {
     NEO4J_PASSWORD: z.string().min(1),
     NEO4J_DATABASE: z.string().default('neo4j'),
     JWT_SECRET: z.string().min(32),
+    COOKIE_SECURE: z.enum(['true', 'false']).default(env.NODE_ENV === 'production' ? 'true' : 'false'),
     CORS_ORIGINS: z.string().default('http://localhost:5173,http://127.0.0.1:5173'),
     ALLOW_TEACHER_REGISTRATION: z.enum(['true', 'false']).default('false'),
   }).parse(env);

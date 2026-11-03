@@ -13,11 +13,12 @@ O app e a API estão executando neste Mac. Mantenha-os abertos durante os testes
 
 - Projeto: `Trilha-PI-IV`.
 - Cluster: `Cluster`, plano Free / M0, AWS São Paulo.
-- Banco: `trilha`; coleção: `usuarios`.
+- Banco: `trilha`; coleções: `usuarios`, `trilhas`, `materiais_conteudo`, `progresso_conteudos` e `escolas`.
+- Escola fictícia para testes: `escolas`, documento `ESCOLA-DEMO-001`, **Escola Horizonte — Demonstração**. A opção está no seletor do frontend; não representa vínculo institucional verificado.
 - Usuário da aplicação: `trilha_api`, com `readWrite` somente em `trilha`.
-- Acesso de rede limitado ao IP público atual do computador.
+- Acesso de rede liberado para todos os IPv4 (`0.0.0.0/0`), solicitado e confirmado pelo usuário em 28/10/2026 para testes em redes diferentes. Autenticação e TLS permanecem obrigatórios.
 - E-mail único, validação de campos e senha protegida com scrypt.
-- Nenhuma coleção de questões ou respostas de atividades.
+- O catálogo de questões permanece no Neo4j; trilhas por conteúdos, materiais, leituras, IDs de questões, respostas e histórico ficam no MongoDB.
 
 ## Neo4j Aura
 
@@ -43,12 +44,18 @@ O banco original do Desktop foi preservado. O backup está em `backend/backups/p
 
 O backend está em `backend/`. Cadastro, login, leitura do próprio perfil, atualização do próprio cadastro e logout usam o MongoDB. As telas de prática e diagnóstico buscam questões e correção no Neo4j pela API.
 
-O teste real confirmou cadastro persistido, senha protegida, rejeição de e-mail duplicado, autenticação, perfil, logout, consulta das 45 questões e das três disciplinas, acesso dos dois perfis fictícios e presença exclusiva da coleção `usuarios` no MongoDB. O relatório sem senhas está em `.local/VERIFICACAO.json`.
+O teste real confirmou cadastro persistido, senha protegida, rejeição de e-mail duplicado, autenticação, perfil, logout, consulta das 45 questões e das três disciplinas, acesso dos dois perfis fictícios e coleções do aplicativo no MongoDB. O relatório sem senhas está em `.local/VERIFICACAO.json`.
 
 No navegador também foram verificados login de estudante, abertura de uma questão do Aura e correção da alternativa pelo servidor.
 
-Os indicadores de progresso, turmas e relatórios permanecem demonstrativos. As tentativas ainda não são salvas; não há cálculo adaptativo de trilha ou XP nesta etapa. As referências de imagens foram preservadas no grafo, mas os arquivos de mídia ainda não são exibidos no app. Autenticação Google e recuperação de senha continuam pendentes.
+Os indicadores de progresso, turmas e relatórios permanecem demonstrativos. As tentativas e trilhas agora são salvas, com recomendações por erros e exploração após todos os acertos. O painel geral de XP ainda é demonstrativo. As referências de imagens foram preservadas no grafo, mas os arquivos de mídia ainda não são exibidos no app. Autenticação Google e recuperação de senha continuam pendentes.
 
 As credenciais estão em `backend/.env`, ignorado pelo Git. Use o usuário e o nome de banco informados pelo arquivo de credenciais do Aura; a instância atual utiliza seu ID nesses campos. Não coloque credenciais dos bancos no Flutter.
 
 Para os comandos e contratos da API, consulte `backend/README.md`.
+
+A geração adaptativa e o seletor de ano escolar estão documentados em `TESTAR_TRILHAS.md`. O relatório atual é `.local/VERIFICACAO_TRILHAS.json`.
+
+A trilha agora exibe um caminho por conteúdos. A etapa seguinte exige concluir a prática anterior; materiais publicados exigem leitura antes da prática. Há três materiais de Física para demonstração. Veja `TESTAR_TRILHAS.md` para testar e `backend/README.md` para cadastrar novos materiais.
+
+A autenticação Web mantém a sessão por até 12 horas e restaura a mesma conta ao recarregar. O logout revoga as sessões da conta. Rotas privadas e perfis são conferidos. Veja `AUTENTICACAO.md` para testar e para a recomendação de verificação de e-mail, ainda não implementada.

@@ -86,12 +86,17 @@ void main() {
     await start(tester);
     await tap(tester, find.text('Professor'));
     await tap(tester, find.text('Ainda não tenho uma conta'));
-    expect(find.text('Código da escola (opcional)'), findsOneWidget);
+    expect(find.text('Escola'), findsOneWidget);
+    expect(
+      find.text('Professores sempre usam uma conta educacional.'),
+      findsOneWidget,
+    );
     await tap(tester, find.byType(CheckboxListTile));
     await tap(tester, find.text('Continuar'));
     expect(find.text('Preencha este campo.'), findsOneWidget);
     expect(find.text('Informe um e-mail válido.'), findsOneWidget);
     expect(find.text('Use pelo menos 8 caracteres.'), findsOneWidget);
+    expect(find.text('Selecione sua escola.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

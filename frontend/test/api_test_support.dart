@@ -9,6 +9,23 @@ import 'package:trilha/src/services/api_service.dart';
 void configureTestApi() {
   ApiService.instance = ApiService(
     client: MockClient((request) async {
+      if (request.url.path == '/api/usuarios/me') {
+        return http.Response(
+          jsonEncode({'erro': 'Entre na sua conta para continuar.'}),
+          401,
+        );
+      }
+      if (request.method == 'GET') {
+        return http.Response(
+          jsonEncode(
+            request.url.path.endsWith('/atual')
+                ? {'trilha': null}
+                : {'trilhas': []},
+          ),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
       if (request.url.path == '/api/auth/logout') return http.Response('', 204);
       final data = jsonDecode(request.body) as Map<String, dynamic>;
       final teacher = data['perfil'] == 'teacher';

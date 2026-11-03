@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Trilha — iPhone no Device Hub",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/frontend",
+      "program": "${workspaceFolder}/frontend/lib/main.dart",
+      "flutterMode": "debug",
+      "emulatorId": "apple_ios_simulator",
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=http://127.0.0.1:3000"
+      ],
+      "preLaunchTask": "Trilha: preparar iOS e API"
+    }
+  ]
+}

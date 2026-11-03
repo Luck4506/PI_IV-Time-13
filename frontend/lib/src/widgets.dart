@@ -324,11 +324,10 @@ class InitialAvatar extends StatelessWidget {
   }
 }
 
-/// Shared feedback for actions awaiting the application services.
 void showPendingFeature(BuildContext context) {
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(
-      content: Text('Este recurso estará disponível em uma próxima versão.'),
+      content: Text('Esta funcionalidade estará disponível em breve.'),
     ),
   );
 }

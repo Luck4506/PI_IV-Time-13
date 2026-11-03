@@ -1,5 +1,6 @@
 import { MongoClient } from 'mongodb';
 import neo4j from 'neo4j-driver';
+import { initializeTrails } from './trails.js';
 
 export function createDatabases(config) {
   const mongo = new MongoClient(config.MONGODB_URI, {
@@ -12,7 +13,7 @@ export function createDatabases(config) {
     });
   const db = mongo.db(config.MONGODB_DATABASE);
   return {
-    mongo, graph, db, users: db.collection('usuarios'),
+    mongo, graph, db, users: db.collection('usuarios'), trails: db.collection('trilhas'),
     async connect() {
       await Promise.all([mongo.connect(), graph.verifyConnectivity()]);
     },
@@ -53,4 +54,5 @@ export async function initializeMongo(databases) {
     }
   }
   await databases.users.createIndex({ email: 1 }, { unique: true, name: 'email_unico' });
+  await initializeTrails(databases);
 }

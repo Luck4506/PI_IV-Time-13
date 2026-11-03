@@ -45,6 +45,12 @@ void main() {
     Map<String, dynamic>? received;
     ApiService.instance = ApiService(
       client: MockClient((request) async {
+        if (request.url.path == '/api/usuarios/me') {
+          return http.Response(
+            jsonEncode({'erro': 'Entre na sua conta.'}),
+            401,
+          );
+        }
         expect(request.url.path, '/api/auth/cadastro');
         received = jsonDecode(request.body) as Map<String, dynamic>;
         return http.Response(
@@ -74,18 +80,34 @@ void main() {
     for (final entry in [
       'Teste Integrado',
       'teste@example.com',
-      '3º ano',
       'SenhaTeste123!',
     ].asMap().entries) {
       await tester.enterText(fields.at(entry.key), entry.value);
     }
+    await tester.tap(find.byKey(const Key('school-year-select')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('6º ano do Ensino Fundamental').last);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('educational-registration')),
+    );
+    await tester.tap(find.byKey(const Key('educational-registration')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Escola'));
+    await tester.tap(find.text('Escola'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Escola Horizonte — Demonstração').last);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byType(CheckboxListTile));
     await tester.tap(find.byType(CheckboxListTile));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Continuar e personalizar'));
     await tester.tap(find.text('Continuar e personalizar'));
     await tester.pumpAndSettle();
     expect(received!['termosAceitos'], true);
-    expect(received!['anoEscolar'], '3º ano');
+    expect(received!['anoEscolar'], '6º ano do Ensino Fundamental');
+    expect(received!['cadastroEducacional'], true);
+    expect(received!['codigoEscola'], 'ESCOLA-DEMO-001');
     expect(
       find.text('Vamos descobrir o melhor ponto de partida?'),
       findsOneWidget,
@@ -94,45 +116,89 @@ void main() {
   });
 
   testWidgets(
-    'atividade mostra questão do grafo e trata ausência de gabarito',
+    'atividade retoma trilha e salva resposta antes de mostrar resultado',
     (tester) async {
+      var saved = false;
+      final item = {
+        'questaoId': 'REAL-01',
+        'nome': 'Questão real',
+        'disciplina': 'Física',
+        'motivo': {'descricao': 'Reforço de tema'},
+        'questao': {
+          'id': 'REAL-01',
+          'questao': 'Questão recebida da API',
+          'alternativaA': 'Alternativa da API',
+        },
+      };
+      Map<String, dynamic> trail() => {
+        'id': 'TRILHA-1',
+        'modo': 'normal',
+        'tipo': 'pratica',
+        'status': saved ? 'concluida' : 'em_andamento',
+        'acertos': saved ? 1 : 0,
+        'erros': 0,
+        'total': 1,
+        'respondidas': saved ? 1 : 0,
+        'itens': [item],
+      };
       ApiService.instance = ApiService(
         client: MockClient((request) async {
           if (request.method == 'GET') {
-            return http.Response(
-              jsonEncode({
-                'questoes': [
-                  {
-                    'id': 'REAL-01',
-                    'questao': 'Questão recebida da API',
-                    'alternativaA': 'Alternativa da API',
-                  },
-                ],
-              }),
-              200,
-            );
+            return http.Response(jsonEncode({'trilha': trail()}), 200);
           }
+          expect(request.url.path, '/api/trilhas/TRILHA-1/respostas');
+          expect(jsonDecode(request.body)['alternativa'], 'A');
+          saved = true;
           return http.Response(
             jsonEncode({
-              'corrigida': false,
-              'mensagem': 'Esta questão ainda não tem gabarito cadastrado.',
+              'trilha': trail(),
+              'resposta': {'correta': true, 'gabarito': 'A'},
+              'proximaTrilha': {
+                'id': 'TRILHA-2',
+                'tipo': 'exploracao',
+                'etapas': [
+                  {
+                    'nome': 'Novo assunto',
+                    'disciplina': 'Física',
+                    'motivo': {'descricao': 'Assunto sorteado'},
+                  },
+                ],
+              },
             }),
             200,
           );
         }),
       );
-      await tester.pumpWidget(const MaterialApp(home: GraphQuizScreen()));
+      Object? openedTrailArguments;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: const GraphQuizScreen(),
+          onGenerateRoute: (settings) {
+            openedTrailArguments = settings.arguments;
+            return MaterialPageRoute<void>(
+              builder: (_) => const Scaffold(body: Text('Trilha aberta')),
+            );
+          },
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Questão recebida da API'), findsOneWidget);
       await tester.tap(find.text('A. Alternativa da API'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Confirmar resposta'));
       await tester.pumpAndSettle();
+      expect(saved, true);
+      expect(find.text('Resposta salva.'), findsOneWidget);
+      await tester.tap(find.text('Ver resultado e trilha'));
+      await tester.pumpAndSettle();
       expect(
-        find.text('Esta questão ainda não tem gabarito cadastrado.'),
+        find.text('Você acertou todas! Vamos explorar novos assuntos.'),
         findsOneWidget,
       );
-      expect(find.text('Resposta correta!'), findsNothing);
+      expect(find.text('Novo assunto'), findsOneWidget);
+      await tester.tap(find.text('Abrir minha trilha'));
+      await tester.pumpAndSettle();
+      expect(openedTrailArguments, {'modo': 'normal', 'trilhaId': 'TRILHA-2'});
     },
   );
 }

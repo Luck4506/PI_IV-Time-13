@@ -12,10 +12,13 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   UserRole role = UserRole.student;
   bool accepted = false;
+  bool educational = false;
+  bool get isEducational => role == UserRole.teacher || educational;
   final formKey = GlobalKey<FormState>();
   final nameController = TextEditingController();
   final emailController = TextEditingController();
-  final schoolController = TextEditingController();
+  String? schoolCode;
+  String? schoolYear;
   final passwordController = TextEditingController();
   bool loading = false;
   String? error;
@@ -25,7 +28,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     for (final controller in [
       nameController,
       emailController,
-      schoolController,
       passwordController,
     ]) {
       controller.dispose();
@@ -45,7 +47,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         email: emailController.text.trim(),
         password: passwordController.text,
         role: role.name,
-        schoolField: schoolController.text.trim(),
+        schoolField: role == UserRole.student ? schoolYear! : '',
+        educational: isEducational,
+        schoolCode: isEducational ? schoolCode : null,
       );
       if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(
@@ -134,26 +138,87 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  TextFormField(
-                    controller: schoolController,
-                    enabled: !loading,
-                    validator: role == UserRole.student
-                        ? validateRequired
-                        : null,
-                    keyboardType: role == UserRole.student
-                        ? TextInputType.number
-                        : TextInputType.text,
-                    decoration: InputDecoration(
-                      labelText: role == UserRole.student
-                          ? 'Ano escolar'
-                          : 'Código da escola (opcional)',
-                      prefixIcon: Icon(
-                        role == UserRole.student
-                            ? Icons.calendar_today_outlined
-                            : Icons.apartment_outlined,
+                  if (role == UserRole.student)
+                    DropdownButtonFormField<String>(
+                      key: const Key('school-year-select'),
+                      initialValue: schoolYear,
+                      isExpanded: true,
+                      items: ApiService.schoolYears
+                          .map(
+                            (year) => DropdownMenuItem(
+                              value: year,
+                              child: Text(
+                                year,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: loading
+                          ? null
+                          : (value) => setState(() => schoolYear = value),
+                      validator: (value) =>
+                          value == null ? 'Selecione seu ano escolar.' : null,
+                      decoration: const InputDecoration(
+                        labelText: 'Ano escolar',
+                        prefixIcon: Icon(Icons.calendar_today_outlined),
                       ),
                     ),
-                  ),
+                  const SizedBox(height: 14),
+                  if (role == UserRole.student)
+                    SwitchListTile.adaptive(
+                      key: const Key('educational-registration'),
+                      value: educational,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Cadastro educacional'),
+                      subtitle: const Text(
+                        'Vou usar o Trilha com a minha escola.',
+                      ),
+                      onChanged: loading
+                          ? null
+                          : (value) => setState(() {
+                              educational = value;
+                              if (!value) schoolCode = null;
+                            }),
+                    )
+                  else
+                    const ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.school_outlined),
+                      title: Text('Cadastro educacional'),
+                      subtitle: Text(
+                        'Professores sempre usam uma conta educacional.',
+                      ),
+                    ),
+                  if (isEducational) ...[
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      key: ValueKey('school-select-${role.name}-$educational'),
+                      initialValue: schoolCode,
+                      isExpanded: true,
+                      items: schoolOptions.entries
+                          .map(
+                            (school) => DropdownMenuItem(
+                              value: school.key,
+                              child: Text(
+                                school.value,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: loading
+                          ? null
+                          : (value) => setState(() => schoolCode = value),
+                      validator: (value) =>
+                          value == null ? 'Selecione sua escola.' : null,
+                      decoration: const InputDecoration(
+                        labelText: 'Escola',
+                        prefixIcon: Icon(Icons.school_outlined),
+                        helperText: 'Escola de exemplo disponível para testes.',
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   TextFormField(
                     controller: passwordController,

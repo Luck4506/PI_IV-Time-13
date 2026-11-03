@@ -2,6 +2,8 @@
 
 Aplicativo Flutter do Projeto Integrador IV, Time 13. Versão inicial do front-end, com entrada pelo login e navegação por perfil.
 
+Para configurar outro computador do grupo com um único arquivo de credenciais, siga o [README da raiz](../README.md). O arquivo recebido fica em `backend/.env`; as senhas dos bancos não são colocadas no frontend.
+
 ## Executar e validar
 
 ```sh
@@ -27,13 +29,13 @@ Inicie a API em `../backend/` antes do aplicativo. Veja o guia em `../backend/RE
 
 ## Estado dos dados
 
-Cadastro e autenticação persistem no MongoDB Atlas. A API retorna o perfil e o nome real da conta. O token permanece apenas em memória, e sair encerra as sessões da conta. Neste ambiente local, o cadastro de professor está habilitado para testes, além das contas fictícias já preparadas. O vínculo escolar ainda não é verificado; a configuração padrão para outras instalações desativa esse cadastro.
+Cadastro e autenticação persistem no MongoDB Atlas. A API retorna o perfil e o nome real da conta. No navegador, a sessão usa cookie HttpOnly e é restaurada por até 12 horas; sair revoga as sessões da conta. A navegação também confere o perfil. No cliente nativo, o token continua apenas em memória. Neste ambiente local, o cadastro de professor está habilitado para testes, além das contas fictícias já preparadas. O vínculo escolar ainda não é verificado; a configuração padrão para outras instalações desativa esse cadastro.
 
-Prática e diagnóstico consultam as questões do Neo4j Aura, sem perguntas fixas nas telas. A correção acontece no servidor e informa quando o grafo ainda não tem gabarito. Imagens referenciadas no grafo ainda exigem integração dos arquivos de mídia.
+Prática e diagnóstico usam trilhas salvas no MongoDB e consultam as questões do Neo4j Aura, sem perguntas fixas nas telas. A correção acontece no servidor e informa quando o grafo ainda não tem gabarito. Imagens referenciadas no grafo ainda exigem integração dos arquivos de mídia.
 
-Percentuais, recomendações, alunos, turmas e relatórios continuam demonstrativos. As atividades não persistem respostas, não atribuem XP e não calculam uma trilha adaptativa real. A seleção de turma mantém os exemplos da versão anterior.
+Percentuais, recomendações, alunos, turmas e relatórios continuam demonstrativos. As atividades persistem respostas e trilhas no MongoDB, com reforço por erros e exploração após todos os acertos. O painel geral de XP ainda é demonstrativo. A seleção de turma mantém os exemplos da versão anterior.
 
-Autenticação Google, recuperação de senha e preferências persistentes ainda estão pendentes. As senhas dos bancos ficam somente no backend; o aplicativo recebe um token de sessão.
+Verificação de e-mail, autenticação Google, recuperação de senha e preferências persistentes ainda estão pendentes. As senhas dos bancos ficam somente no backend; o aplicativo recebe um token de sessão.
 
 ## Organização
 
@@ -53,3 +55,7 @@ Os arquivos de tela usam `part` e os arquivos `telas_autenticacao.dart`, `telas_
 ## OneDrive neste Mac
 
 O analisador desta versão do Flutter apresentou erro interno ao processar o caminho com acentos do OneDrive. A análise foi executada em cópia temporária com caminho simples. Se o problema ocorrer, execute a validação em uma cópia fora do OneDrive. Nenhum link de build ou caminho particular da máquina é necessário no repositório.
+
+Veja `../TESTAR_TRILHAS.md` para testar os dois caminhos da geração de trilhas.
+
+A trilha apresenta conteúdos em um caminho alternado, com etapas disponíveis, concluídas e bloqueadas. Cada conteúdo abre teoria e depois prática; leitura e respostas ficam no MongoDB. Materiais ainda não publicados aparecem em preparação. As telas estão em `content_trail_map.dart`, `content_stage_screen.dart` e `user_trail_view.dart`.

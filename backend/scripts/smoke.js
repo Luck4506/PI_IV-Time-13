@@ -56,8 +56,8 @@ try {
   }
   report.checks.bothExampleProfiles = true;
   const collections = await mongo.db(process.env.MONGODB_DATABASE).listCollections({}, { nameOnly: true }).toArray();
-  assert.deepEqual(collections.map(x => x.name).filter(x => !x.startsWith('system.')), ['usuarios']);
-  report.checks.mongoContainsOnlyUsersCollection = true;
+  assert.deepEqual(collections.map(x => x.name).filter(x => !x.startsWith('system.')).sort(), ['materiais_conteudo', 'progresso_conteudos', 'trilhas', 'usuarios']);
+  report.checks.mongoCollectionsAsExpected = true;
   report.status = 'ok';
 } finally {
   if (temporaryId) await users.deleteOne({ _id: temporaryId });
