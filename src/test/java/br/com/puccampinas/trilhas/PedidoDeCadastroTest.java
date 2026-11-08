@@ -32,7 +32,7 @@ public class PedidoDeCadastroTest {
     @Test
     void cadastroEstudanteSemSobrenome() throws Exception {
         Exception excecao = assertThrows(
-                *Exception.class,
+                Exception.class,
                 () -> new PedidoDeCadastro("Ana",
                         LocalDate.of(2008, 5, 15), "Abcde12!",
                         "ana@example.com", Perfil.ESTUDANTE, 1, null)
