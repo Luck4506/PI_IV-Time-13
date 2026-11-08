@@ -17,18 +17,18 @@ public class ClienteTest {
                 String texto = Teclado.getUmString();
 
                 if(texto == null || texto.equalsIgnoreCase("sair")) {
-                    transmissor.writeObject("sair");
+                    transmissor.writeObject(new PedidoParaSair());
                     transmissor.flush();
                     break;
                 }
 
-                // Envia o que você digitou no console para o servidor
-                transmissor.writeObject(texto);
+                // Envia comunicado vazio para o servidor
+                transmissor.writeObject(new Comunicado());
                 transmissor.flush();
 
                 // Fica esperando a resposta do servidor e imprime na tela
-                String resposta = (String) receptor.readObject();
-                System.out.println("Servidor > " + resposta);
+                Comunicado resposta = (Comunicado) receptor.readObject();
+                System.out.println("Comunicado recebido de volta.");
             }
 
             conexao.close();

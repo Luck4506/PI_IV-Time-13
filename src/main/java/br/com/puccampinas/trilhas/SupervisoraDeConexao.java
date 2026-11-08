@@ -65,21 +65,13 @@ public class SupervisoraDeConexao extends Thread {
 
             // Teste
             for(;;) {
-                Object recebido = receptor.readObject();
+                Comunicado comunicado = usuario.envie();
 
-                if (recebido instanceof String) {
-                    String mensagem = (String) recebido;
-
-                    if(mensagem.equalsIgnoreCase("sair")) break;
-
-                    if (mensagem.equals("Hello")) {
-                        transmissor.writeObject("Hello, Peter");
-                    }
-                    else {
-                        transmissor.writeObject("Servidor recebeu: " + mensagem + "," +
-                                                " mas nao sabe o que fazer com isso.");
-                    }
-                    transmissor.flush();
+                if(comunicado instanceof PedidoParaSair) {
+                    break;
+                }
+                else {
+                    usuario.receba(comunicado);
                 }
             }
         }

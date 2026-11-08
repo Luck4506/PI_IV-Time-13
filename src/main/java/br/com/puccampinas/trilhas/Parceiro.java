@@ -2,6 +2,7 @@ package br.com.puccampinas.trilhas;
 
 import java.io.*;
 import java.net.*;
+import java.rmi.server.ExportException;
 import java.util.*;
 import java.util.concurrent.Semaphore;
 
@@ -10,6 +11,9 @@ public class Parceiro {
     private Socket conexao;
     private ObjectInputStream receptor;
     private ObjectOutputStream transmissor;
+
+    private Comunicado proximoComunicado = null;
+    private Semaphore mutEx = new Semaphore(1, true);
 
     public Parceiro(Socket conexao,
                     ObjectInputStream receptor,
@@ -25,6 +29,57 @@ public class Parceiro {
         this.conexao = conexao;
         this.receptor = receptor;
         this.transmissor = transmissor;
+    }
+
+    public void receba(Comunicado x) throws Exception {
+
+        if(x == null) throw new Exception("Comunicado ausente.");
+
+        try {
+            synchronized(this.transmissor) {
+                this.transmissor.writeObject(x);
+                this.transmissor.flush();
+            }
+        }
+        catch(IOException erro) {
+            throw new Exception("Erro de transmissao.");
+        }
+    }
+
+    public Comunicado espie() throws Exception {
+
+        this.mutEx.acquireUninterruptibly();
+        try {
+            if(this.proximoComunicado == null)
+                this.proximoComunicado = (Comunicado) this.receptor.readObject();
+
+            return this.proximoComunicado;
+        }
+        catch(Exception erro) {
+            throw new Exception("Erro de recepcao.");
+        }
+        finally {
+            this.mutEx.release();
+        }
+    }
+
+    public Comunicado envie() throws Exception {
+
+        this.mutEx.acquireUninterruptibly();
+        try {
+            if(this.proximoComunicado == null)
+                this.proximoComunicado = (Comunicado) this.receptor.readObject();
+
+            Comunicado ret = this.proximoComunicado;
+            this.proximoComunicado = null;
+            return ret;
+        }
+        catch(Exception erro) {
+            throw new Exception("Erro de recepcao.");
+        }
+        finally {
+            this.mutEx.release();
+        }
     }
 
     public void adeus() throws Exception {
