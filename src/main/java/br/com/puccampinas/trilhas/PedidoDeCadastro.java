@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import static br.com.puccampinas.trilhas.Perfil.ESTUDANTE;
 import static br.com.puccampinas.trilhas.Perfil.PROFESSOR;
 
+// Transporta os dados do cadastro; não acessa o banco.
 public class PedidoDeCadastro extends Comunicado {
     private final String nome;
     private final LocalDate dataNascimento;
@@ -14,35 +15,63 @@ public class PedidoDeCadastro extends Comunicado {
     private final Integer anoEscolar;
     private final String codProfessor;
 
-    public PedidoDeCadastro(String nome, LocalDate dn, String senha, String email, Perfil perfil,
-    Integer anoEscolar, String codProf) throws Exception {
+    public PedidoDeCadastro(String nome, LocalDate dataNascimento, String senha, String email, Perfil perfil,
+    Integer anoEscolar, String codProfessor) throws Exception {
 
-        if(nome == null || !nome.strip().matches(
+        // Normaliza textos sem acessar valores nulos; a senha é preservada.
+        if(nome != null) {
+            this.nome = nome.strip().replaceAll("\\s+", " ");
+        }
+        else {
+            this.nome = null;
+        }
+
+        this.dataNascimento = dataNascimento;
+        this.senha = senha;
+
+        if(email != null) {
+            this.email = email.strip();
+        }
+        else {
+            this.email = null;
+        }
+
+        this.perfil = perfil;
+        this.anoEscolar = anoEscolar;
+        this.codProfessor = codProfessor;
+
+        // Valida somente após preencher todos os atributos.
+        validar();
+    }
+
+    // Interrompe na primeira regra inválida, informando sua mensagem.
+    public void validar() throws Exception {
+
+        if (nome == null || !nome.strip().matches(
                 "[\\p{L}\\p{M}]+(?:['’\\-][\\p{L}\\p{M}]+)*(?:\\s+[\\p{L}\\p{M}]+(?:['’\\-][\\p{L}\\p{M}]+)*)+"
         )) {
             throw new Exception("Informe seu nome e sobrenome.");
         }
 
-        if(dn == null || dn.isBefore(LocalDate.of(1800, 1, 1)) ||
-           dn.isAfter(LocalDate.now())) {
-            throw new Exception("Informe uma data de nascimento válida, entre 01/01/1800 e hoje.");
+        if (dataNascimento == null || dataNascimento.isBefore(LocalDate.of(1800, 1, 1)) ||
+                dataNascimento.isAfter(LocalDate.now())) {
+            throw new Exception("Informe uma data de nascimento valida, entre 01/01/1800 e hoje.");
         }
 
+        // Conta dígitos e identifica letras e símbolos na senha.
         int quantidadeDigitos = 0;
         boolean temLetra = false;
         boolean temEspecial = false;
 
-        if(senha != null) {
-            for(int i = 0; i < senha.length(); i++) {
+        if (senha != null) {
+            for (int i = 0; i < senha.length(); i++) {
                 char caractere = senha.charAt(i);
 
-                if(Character.isDigit(caractere)) {
+                if (Character.isDigit(caractere)) {
                     quantidadeDigitos++;
-                }
-                else if(Character.isLetter(caractere)) {
+                } else if (Character.isLetter(caractere)) {
                     temLetra = true;
-                }
-                else if(!Character.isWhitespace(caractere) &&
+                } else if (!Character.isWhitespace(caractere) &&
                         !Character.isSpaceChar(caractere) &&
                         !Character.isISOControl(caractere)) {
                     temEspecial = true;
@@ -50,35 +79,29 @@ public class PedidoDeCadastro extends Comunicado {
             }
         }
 
-        if(senha == null || senha.length() < 8 || quantidadeDigitos < 2 ||
-           !temLetra || !temEspecial) {
-            throw new Exception("A senha deve ter pelo menos 8 caracteres, incluindo uma letra, dois números " +
+        if (senha == null || senha.length() < 8 || quantidadeDigitos < 2 ||
+                !temLetra || !temEspecial) {
+            throw new Exception("A senha deve ter pelo menos 8 caracteres, incluindo uma letra, dois numeros " +
                     "e um caractere especial.");
         }
 
-        if(email == null || !email.strip().matches("[^\\s@]+@[^\\s@.]+(?:\\.[^\\s@.]+)+")) {
-            throw new Exception("Informe um endereço de email válido.");
+        if (email == null || !email.strip().matches("[^\\s@]+@[^\\s@.]+(?:\\.[^\\s@.]+)+")) {
+            throw new Exception("Informe um endereco de email valido.");
         }
 
-        if(perfil == null) {
-            throw new Exception("Perfil inválido.");
+        if (perfil == null) {
+            throw new Exception("Perfil invalido.");
         }
 
-        if(perfil == ESTUDANTE && (anoEscolar == null || anoEscolar < 1 || anoEscolar > 3)) {
+        // Exige somente o campo correspondente ao perfil escolhido.
+        if (perfil == ESTUDANTE && (anoEscolar == null || anoEscolar < 1 || anoEscolar > 3)) {
             throw new Exception("Selecione o 1º, 2º ou 3º ano.");
         }
-            
-        if(perfil == PROFESSOR && (codProf == null || !codProf.matches("[0-9]{4}"))) {
+
+        // Aqui verificamos o formato; a existência do código cabe ao Node.js.
+        if (perfil == PROFESSOR && (codProfessor == null || !codProfessor.matches("[0-9]{4}"))) {
             throw new Exception("Informe um código de professor com 4 dígitos.");
         }
-
-        this.nome = nome.strip().replaceAll("\\s+", " ");
-        this.dataNascimento = dn;
-        this.senha = senha;
-        this.email = email.strip();
-        this.perfil = perfil;
-        this.anoEscolar = anoEscolar;
-        this.codProfessor = codProf;
     }
 
     public String getNome() { return this.nome; }

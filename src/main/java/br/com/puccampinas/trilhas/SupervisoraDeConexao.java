@@ -3,10 +3,7 @@ package br.com.puccampinas.trilhas;
 import java.io.*;
 import java.net.*;
 import java.util.*;
-
-/*
-Documentacao...
-*/
+import java.nio.charset.StandardCharsets;
 
 public class SupervisoraDeConexao extends Thread {
 
@@ -28,19 +25,21 @@ public class SupervisoraDeConexao extends Thread {
 
     public void run() {
 
-        ObjectOutputStream transmissor;
+        BufferedWriter transmissor;
         try {
-            transmissor = new ObjectOutputStream(
-                          this.conexao.getOutputStream());
+            transmissor = new BufferedWriter(
+                          new OutputStreamWriter(
+                          this.conexao.getOutputStream(), StandardCharsets.UTF_8));
         }
         catch(Exception erro) {
             return;
         }
 
-        ObjectInputStream receptor = null;
+        BufferedReader receptor = null;
         try {
-            receptor = new ObjectInputStream(
-                       this.conexao.getInputStream());
+            receptor = new BufferedReader(
+                       new InputStreamReader(
+                       this.conexao.getInputStream(), StandardCharsets.UTF_8));
         }
         catch(Exception erro) {
             try {
@@ -65,13 +64,24 @@ public class SupervisoraDeConexao extends Thread {
 
             // Teste
             for(;;) {
-                Comunicado comunicado = usuario.envie();
+                String comunicado = usuario.envie();
 
-                if(comunicado instanceof PedidoParaSair) {
+                if(comunicado == null) {
                     break;
                 }
                 else {
-                    usuario.receba(comunicado);
+                    ConversorJson conversor = new ConversorJson();
+                    ResultadoValidacao resultado;
+
+                    try {
+                        conversor.converterPedido(comunicado);
+                        resultado = new ResultadoValidacao(true, "Campos validos.");
+                    } catch (Exception erro) {
+                        resultado = new ResultadoValidacao(false, erro.getMessage());
+                    }
+
+                    String respostaJson = conversor.converterResultado(resultado);
+                    usuario.receba(respostaJson);
                 }
             }
         }

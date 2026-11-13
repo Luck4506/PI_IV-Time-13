@@ -2,40 +2,44 @@ package br.com.puccampinas.trilhas;
 
 import java.io.*;
 import java.net.*;
+import java.nio.charset.StandardCharsets;
 
 public class ClienteTest {
     public static void main(String[] args) {
-        try {
-            Socket conexao = new Socket("localhost", 3000);
-            ObjectOutputStream transmissor = new ObjectOutputStream(conexao.getOutputStream());
-            ObjectInputStream receptor = new ObjectInputStream(conexao.getInputStream());
+        // Cliente temporário para testar uma mensagem por linha, em UTF-8.
+        try (Socket conexao = new Socket("localhost", 3000)) {
+            BufferedWriter transmissor = new BufferedWriter(new OutputStreamWriter(
+                    conexao.getOutputStream(), StandardCharsets.UTF_8));
+            BufferedReader receptor = new BufferedReader(new InputStreamReader(
+                    conexao.getInputStream(), StandardCharsets.UTF_8));
 
-            System.out.println("Conectado ao servidor! Digite 'Hello' ou qualquer outra coisa ('sair' para encerrar):");
+            System.out.println("Conectado! Digite uma linha de texto ou JSON ('sair' para encerrar):");
 
             for(;;) {
                 System.out.print("Você > ");
                 String texto = Teclado.getUmString();
 
                 if(texto == null || texto.equalsIgnoreCase("sair")) {
-                    transmissor.writeObject(new PedidoParaSair());
-                    transmissor.flush();
+                    // Ao sair do try, o socket é fechado e o servidor recebe EOF.
                     break;
                 }
 
-                // Envia comunicado vazio para o servidor
-                transmissor.writeObject(new Comunicado());
+                // A quebra de linha delimita a mensagem; flush efetiva o envio.
+                transmissor.write(texto);
+                transmissor.newLine();
                 transmissor.flush();
 
-                // Fica esperando a resposta do servidor e imprime na tela
-                Comunicado resposta = (Comunicado) receptor.readObject();
-                System.out.println("Comunicado recebido de volta.");
+                String resposta = receptor.readLine();
+                if(resposta == null) {
+                    System.out.println("O servidor encerrou a conexão.");
+                    break;
+                }
+                System.out.println("Servidor > " + resposta);
             }
-
-            conexao.close();
-            System.out.println("Conexão encerrada.");
 
         } catch (Exception e) {
             System.err.println("Erro na conexão: " + e.getMessage());
         }
+        System.out.println("Conexão encerrada.");
     }
 }

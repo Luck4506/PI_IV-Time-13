@@ -9,15 +9,17 @@ import java.util.concurrent.Semaphore;
 public class Parceiro {
 
     private Socket conexao;
-    private ObjectInputStream receptor;
-    private ObjectOutputStream transmissor;
+    // Streams de texto: a comunicação será feita com um JSON por linha.
+    private BufferedReader receptor;
+    private BufferedWriter transmissor;
 
-    private Comunicado proximoComunicado = null;
+    // Guarda a próxima mensagem em texto para consultar sem consumir.
+    private String proximoComunicado = null;
     private Semaphore mutEx = new Semaphore(1, true);
 
     public Parceiro(Socket conexao,
-                    ObjectInputStream receptor,
-                    ObjectOutputStream transmissor)
+                    BufferedReader receptor,
+                    BufferedWriter transmissor)
                     throws Exception {
 
         if(conexao == null) throw new Exception("Conexao ausente.");
@@ -31,13 +33,14 @@ public class Parceiro {
         this.transmissor = transmissor;
     }
 
-    public void receba(Comunicado x) throws Exception {
+    public void receba(String x) throws Exception {
 
         if(x == null) throw new Exception("Comunicado ausente.");
 
         try {
             synchronized(this.transmissor) {
-                this.transmissor.writeObject(x);
+                this.transmissor.write(x);
+                this.transmissor.newLine();
                 this.transmissor.flush();
             }
         }
@@ -46,12 +49,12 @@ public class Parceiro {
         }
     }
 
-    public Comunicado espie() throws Exception {
+    public String espie() throws Exception {
 
         this.mutEx.acquireUninterruptibly();
         try {
             if(this.proximoComunicado == null)
-                this.proximoComunicado = (Comunicado) this.receptor.readObject();
+                this.proximoComunicado = this.receptor.readLine();
 
             return this.proximoComunicado;
         }
@@ -63,14 +66,14 @@ public class Parceiro {
         }
     }
 
-    public Comunicado envie() throws Exception {
+    public String envie() throws Exception {
 
         this.mutEx.acquireUninterruptibly();
         try {
             if(this.proximoComunicado == null)
-                this.proximoComunicado = (Comunicado) this.receptor.readObject();
+                this.proximoComunicado = this.receptor.readLine();
 
-            Comunicado ret = this.proximoComunicado;
+            String ret = this.proximoComunicado;
             this.proximoComunicado = null;
             return ret;
         }
