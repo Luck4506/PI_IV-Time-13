@@ -30,7 +30,7 @@ public class ConversorJson {
         }
     }
 
-    public PedidoDeCadastro converterPedido(String texto) throws Exception {
+    public Comunicado converterPedido(String texto) throws Exception {
         // Interpreta o texto recebido para permitir a consulta dos campos.
         JsonElement elemento;
         try {
@@ -50,10 +50,28 @@ public class ConversorJson {
 
         if(tipo == null) throw new Exception("Tipo de pedido invalido.");
 
-        if(!tipo.equals("VALIDAR_CADASTRO")) {
-            throw new Exception("Tipo de pedido nao suportado. Esperado: VALIDAR_CADASTRO.");
+        // Cada tipo chama seu método; qualquer outro é rejeitado.
+        if(tipo.equals("VALIDAR_CADASTRO")) {
+            return lerCadastro(json);
         }
+        else if(tipo.equals("VALIDAR_LOGIN")) {
+            return lerLogin(json);
+        }
+        else {
+            throw new Exception("Tipo de pedido nao suportado. Esperado: VALIDAR_CADASTRO ou VALIDAR_LOGIN.");
+        }
+    }
 
+    // Lê e-mail e senha; a validação fica no construtor do PedidoDeLogin.
+    private PedidoDeLogin lerLogin(JsonObject json) throws Exception {
+        final String email = lerTexto(json, "email");
+        final String senha = lerTexto(json, "senha");
+
+        return new PedidoDeLogin(email, senha);
+    }
+
+    // Lê os campos do cadastro; o construtor do PedidoDeCadastro valida.
+    private PedidoDeCadastro lerCadastro(JsonObject json) throws Exception {
         // Campos ausentes permanecem nulos para a validação do pedido.
         // final impede reatribuição dos textos lidos; não altera sua validação.
         final String nome = lerTexto(json, "nome");
