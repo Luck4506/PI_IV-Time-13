@@ -23,6 +23,18 @@ public class ServicoCadastroTest {
         }
     }
 
+    private static class ClienteNodeInterrompido extends ClienteNode {
+
+        public ClienteNodeInterrompido() throws Exception {
+            super(URI.create("http://127.0.0.1"));
+        }
+
+        @Override
+        public HttpResponse<String> cadastrar(String cadastroJson) throws Exception {
+            throw new InterruptedException("Falha simulada.");
+        }
+    }
+
     @Test
     void retornarIndisponibilidadeQuandoNodeFalhar() throws Exception {
         ServicoCadastro servico = new ServicoCadastro(new ClienteNodeIndisponivel());
@@ -76,4 +88,19 @@ public class ServicoCadastroTest {
             servidor.stop(0);
         }
     }
+
+    @Test
+    void preservarInterrupcaoDaThread() throws Exception {
+        ServicoCadastro servico = new ServicoCadastro(new ClienteNodeInterrompido());
+        try {
+            assertThrows(
+                    InterruptedException.class,
+                    () -> servico.cadastrar("{\"fruta\":\"Abacate\"}")
+            );
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
 }
