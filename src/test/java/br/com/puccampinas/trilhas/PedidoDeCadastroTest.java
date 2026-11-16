@@ -10,22 +10,29 @@ public class PedidoDeCadastroTest {
     void cadastroEstudanteValido() throws Exception {
         PedidoDeCadastro pedido = new PedidoDeCadastro("Ana Silva",
                                                 LocalDate.of(2008, 5, 15), "Abcde12!",
-                                                "ana@example.com", Perfil.ESTUDANTE, 1, null);
+                                                "ana@example.com", Perfil.ESTUDANTE, 1,
+                                                null, null, null, true, null);
 
         assertEquals("Ana Silva", pedido.getNome());
         assertEquals(Perfil.ESTUDANTE, pedido.getPerfil());
         assertEquals(1, pedido.getAnoEscolar());
+        // Omissão do vínculo no aluno assume false.
+        assertFalse(pedido.isCadastroEducacional());
     }
 
     @Test
     void cadastroProfessorValido() throws Exception {
         PedidoDeCadastro pedido = new PedidoDeCadastro("Ivan Granja",
                                          LocalDate.of(1967, 8, 15), "Ivann12!",
-                                         "ana@example.com", Perfil.PROFESSOR, null, "0042");
+                                         "ana@example.com", Perfil.PROFESSOR, null,
+                                         "0042", true, "ESCOLA-DEMO-001", true, null);
 
         assertEquals(Perfil.PROFESSOR, pedido.getPerfil());
         assertEquals("0042", pedido.getCodProfessor());
         assertNull(pedido.getAnoEscolar());
+        // Professor precisa de vínculo educacional e escola informada.
+        assertTrue(pedido.isCadastroEducacional());
+        assertEquals("ESCOLA-DEMO-001", pedido.getCodigoEscola());
     }
 
     @Test
@@ -35,7 +42,8 @@ public class PedidoDeCadastroTest {
                 Exception.class,
                 () -> new PedidoDeCadastro("Ana",
                         LocalDate.of(2008, 5, 15), "Abcde12!",
-                        "ana@example.com", Perfil.ESTUDANTE, 1, null)
+                        "ana@example.com", Perfil.ESTUDANTE, 1, null,
+                        null, null, true, null)
         );
 
         assertEquals("Informe seu nome e sobrenome.", excecao.getMessage());
@@ -47,7 +55,8 @@ public class PedidoDeCadastroTest {
                 Exception.class,
                 () -> new PedidoDeCadastro(null,
                         LocalDate.of(2008, 5, 15), "Abcde12!",
-                        "null@example.com", Perfil.ESTUDANTE, 1, null)
+                        "null@example.com", Perfil.ESTUDANTE, 1, null,
+                        null, null, true, null)
         );
 
         assertEquals("Informe seu nome e sobrenome.", excecao.getMessage());
@@ -59,7 +68,8 @@ public class PedidoDeCadastroTest {
                 Exception.class,
                 () -> new PedidoDeCadastro("Nulana Alun",
                         LocalDate.of(2008, 5, 15), "Abcde12!",
-                        null , Perfil.ESTUDANTE, 1, null)
+                        null , Perfil.ESTUDANTE, 1, null,
+                        null, null, true, null)
         );
 
         assertEquals("Informe um endereco de email valido.", excecao.getMessage());

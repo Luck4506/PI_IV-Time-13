@@ -7,6 +7,7 @@ import java.time.format.DateTimeParseException;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonSyntaxException;
 
+// Confere os tipos do JSON e monta o pedido; as regras dos campos ficam no pedido.
 public class ConversorJson {
 
     public String converterResultado(ResultadoValidacao resultado) {
@@ -15,7 +16,7 @@ public class ConversorJson {
         return gson.toJson(resultado);
     }
 
-    // Centraliza a leitura de texto: ausência vira null; outros tipos são rejeitados.
+    // Ausência e JSON null viram null; números e booleanos não são convertidos em texto.
     private String lerTexto(JsonObject json, String nomeDoCampo) throws Exception {
         if(json.get(nomeDoCampo) == null || json.get(nomeDoCampo).isJsonNull()) {
             return null;
@@ -30,8 +31,23 @@ public class ConversorJson {
         }
     }
 
+    // Somente ausência permite valor padrão; JSON null e tipos não booleanos são rejeitados.
+    private Boolean lerBooleano(JsonObject json, String nomeDoCampo) throws Exception {
+        if(json.get(nomeDoCampo) == null) return null;
+
+        if(json.get(nomeDoCampo).isJsonNull()) {
+            throw new Exception("Campo " + nomeDoCampo + " deve ser informado como booleano.");
+        }
+
+        if(!json.get(nomeDoCampo).isJsonPrimitive() || !json.get(nomeDoCampo).getAsJsonPrimitive().isBoolean()) {
+            throw new Exception("Campo " + nomeDoCampo + " deve ser informado como booleano.");
+        }
+
+        return json.get(nomeDoCampo).getAsBoolean();
+    }
+
     public PedidoDeCadastro converterPedido(String texto) throws Exception {
-        // Interpreta o texto recebido para permitir a consulta dos campos.
+        // Interpreta o texto; erros de sintaxe recebem uma mensagem própria.
         JsonElement elemento;
         try {
             elemento = JsonParser.parseString(texto);
@@ -39,6 +55,7 @@ public class ConversorJson {
             throw new Exception("JSON invalido.");
         }
 
+        // JSON válido também pode ser lista ou valor simples; o pedido deve ser objeto.
         if(!elemento.isJsonObject()) {
             throw new Exception("O pedido deve ser um objeto JSON.");
         }
@@ -54,28 +71,22 @@ public class ConversorJson {
             throw new Exception("Tipo de pedido nao suportado. Esperado: VALIDAR_CADASTRO.");
         }
 
-        // Campos ausentes permanecem nulos para a validação do pedido.
-        // final impede reatribuição dos textos lidos; não altera sua validação.
+        // Lê textos e booleanos uma vez; obrigatoriedade e padrões são tratados no pedido.
         final String nome = lerTexto(json, "nome");
         final String senha = lerTexto(json, "senha");
         final String email = lerTexto(json, "email");
         final String codProfessor = lerTexto(json, "codProfessor");
-        final String perfilTexto = lerTexto(json, "perfil");
         final String nascimentoTexto = lerTexto(json, "dataNascimento");
-        // Os valores convertidos serão preenchidos conforme os dados recebidos.
-        Perfil perfil = null;
+        final Boolean cadastroEducacional = lerBooleano(json, "cadastroEducacional");
+        final Boolean termosAceitos = lerBooleano(json, "termosAceitos");
+        final String codigoEscola = lerTexto(json, "codigoEscola");
+        final String codigoTurma = lerTexto(json, "codigoTurma");
+        final Perfil perfil;
+
+        // Começam ausentes e podem ser preenchidos após conversão; por isso não são final.
+        Integer perfilNumero = null;
         LocalDate dataNascimento = null;
         Integer anoEscolar = null;
-
-        // Traduz os valores usados pelo Node.js para o enum Java.
-        if(perfilTexto != null) {
-            if(perfilTexto.equals("student")) {
-                perfil = Perfil.ESTUDANTE;
-            }
-            else if(perfilTexto.equals("teacher")) {
-                perfil = Perfil.PROFESSOR;
-            }
-        }
 
         // Exige número inteiro no JSON, evitando converter textos ou truncar 1.5 para 1.
         if(json.get("anoEscolar") != null && !json.get("anoEscolar").isJsonNull()) {
@@ -93,16 +104,49 @@ public class ConversorJson {
             }
         }
 
-        // Converte a data no formato AAAA-MM-DD e trata datas impossíveis.
+        // O perfil recebido deve ser número inteiro, nunca texto como "1" ou "student".
+        if(json.get("perfil") != null && !json.get("perfil").isJsonNull()) {
+            if(json.get("perfil").isJsonPrimitive() &&
+                    json.get("perfil").getAsJsonPrimitive().isNumber())
+            {
+                try {
+                    perfilNumero = json.get("perfil").getAsBigDecimal().intValueExact();
+                } catch (ArithmeticException erro) {
+                    throw new Exception("Perfil deve ser um numero inteiro.");
+                }
+            }
+            else {
+                throw new Exception("Perfil deve ser um numero inteiro.");
+            }
+        }
+
+        // Traduz 1/2 para o enum usado internamente; cada caminho atribui perfil uma vez.
+        if(perfilNumero != null) {
+            if (perfilNumero < 1 || perfilNumero > 2) {
+                throw new Exception("Perfil precisa ter o valor 1 ou 2.");
+            }
+
+            if (perfilNumero == 1) {
+                perfil = Perfil.ESTUDANTE;
+            } else {
+                perfil = Perfil.PROFESSOR;
+            }
+        }
+        else {
+            throw new Exception("Perfil invalido.");
+        }
+
+        // Converte AAAA-MM-DD; o pedido verifica depois os limites de 1800 a 3000.
         if(nascimentoTexto != null) {
             try{
                 dataNascimento = LocalDate.parse(nascimentoTexto);
             } catch (DateTimeParseException erro) {
-                throw new Exception("Informe uma data de nascimento valida, entre 01/01/1800 e hoje.");
+                throw new Exception("Informe uma data de nascimento valida, entre 01/01/1800 e 01/01/3000.");
             }
         }
 
         // O construtor executa validar(); dados inválidos impedem o retorno.
-        return new PedidoDeCadastro(nome, dataNascimento, senha, email, perfil, anoEscolar, codProfessor);
+        return new PedidoDeCadastro(nome, dataNascimento, senha, email, perfil, anoEscolar, codProfessor,
+                                    cadastroEducacional, codigoEscola, termosAceitos, codigoTurma);
     }
 }
