@@ -8,6 +8,7 @@ import java.net.http.HttpResponse;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.concurrent.atomic.AtomicReference;
 
+// Verifica transporte HTTP e interpretação das respostas usando um Node simulado localmente.
 public class ClienteNodeTest {
 
     @Test
@@ -78,6 +79,7 @@ public class ClienteNodeTest {
 
     @Test
     void preservarRespostaDeCadastroDuplicado() throws Exception {
+        // HTTP 409 deve manter a mensagem de recusa e não retornar dados de sucesso.
         HttpServer servidor = HttpServer.create(
                               new InetSocketAddress("127.0.0.1", 0),
                               0
@@ -119,6 +121,7 @@ public class ClienteNodeTest {
 
     @Test
     void tratarErro500SemExigirJson() throws Exception {
+        // Uma falha HTTP 500 deve virar indisponibilidade mesmo quando o corpo não é JSON.
         HttpServer servidor = HttpServer.create(
                 new InetSocketAddress("127.0.0.1", 0),
                 0

@@ -9,6 +9,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
+// Isola falhas de comunicação e de resposta sem depender do Node real ou dos bancos.
 public class ServicoCadastroTest {
 
     private static class ClienteNodeIndisponivel extends ClienteNode {
@@ -37,6 +38,7 @@ public class ServicoCadastroTest {
 
     @Test
     void retornarIndisponibilidadeQuandoNodeFalhar() throws Exception {
+        // O cliente substituto lança IOException para simular uma falha de transporte.
         ServicoCadastro servico = new ServicoCadastro(new ClienteNodeIndisponivel());
         RespostaOperacao operacao = servico.cadastrar("{\"fruta\": \"Abacate\"}");
 
@@ -48,6 +50,7 @@ public class ServicoCadastroTest {
 
     @Test
     void retornarIndisponibilidadeQuandoNodeEnviarRespostaInvalida() throws Exception {
+        // Um status 201 com corpo inválido não deve ser apresentado como sucesso.
         HttpServer servidor = HttpServer.create(
                               new InetSocketAddress("127.0.0.1", 0),
                               0
@@ -91,6 +94,7 @@ public class ServicoCadastroTest {
 
     @Test
     void preservarInterrupcaoDaThread() throws Exception {
+        // A interrupção precisa ser propagada e continuar marcada na thread chamadora.
         ServicoCadastro servico = new ServicoCadastro(new ClienteNodeInterrompido());
         try {
             assertThrows(
@@ -99,6 +103,7 @@ public class ServicoCadastroTest {
             );
             assertTrue(Thread.currentThread().isInterrupted());
         } finally {
+            // Limpa o sinal somente no teste, para não afetar os próximos cenários do JUnit.
             Thread.interrupted();
         }
     }

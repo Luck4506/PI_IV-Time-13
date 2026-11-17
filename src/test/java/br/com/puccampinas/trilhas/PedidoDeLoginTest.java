@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+// Verifica formato, presença e normalização dos campos; não autentica contas.
 public class PedidoDeLoginTest {
 
     @Test

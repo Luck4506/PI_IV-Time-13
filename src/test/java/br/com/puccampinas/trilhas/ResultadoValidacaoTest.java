@@ -2,6 +2,7 @@ package br.com.puccampinas.trilhas;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
+// Confere o resultado de validação isolado, sem representar uma operação concluída no Node.
 public class ResultadoValidacaoTest {
 
     @Test

@@ -33,11 +33,13 @@ public class Parceiro {
         this.transmissor = transmissor;
     }
 
+    // Nomes preservados da referência: receba envia ao cliente; envie recebe dele.
     public void receba(String x) throws Exception {
 
         if(x == null) throw new Exception("Comunicado ausente.");
 
         try {
+            // Mantém conteúdo, delimitador e flush juntos para não misturar envios simultâneos.
             synchronized(this.transmissor) {
                 this.transmissor.write(x);
                 this.transmissor.newLine();
@@ -49,6 +51,7 @@ public class Parceiro {
         }
     }
 
+    // Consulta a próxima linha sem consumi-la; o semáforo protege leitura e mensagem guardada.
     public String espie() throws Exception {
 
         this.mutEx.acquireUninterruptibly();
@@ -66,6 +69,7 @@ public class Parceiro {
         }
     }
 
+    // Consome a linha guardada ou lê outra; null indica fim da entrada (EOF).
     public String envie() throws Exception {
 
         this.mutEx.acquireUninterruptibly();

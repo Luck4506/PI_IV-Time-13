@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+// Confere o envelope da operação e a presença explícita de dados: null na resposta de recusa.
 public class RespostaOperacaoTest {
 
     @Test

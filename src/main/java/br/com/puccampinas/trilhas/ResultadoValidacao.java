@@ -1,6 +1,6 @@
 package br.com.puccampinas.trilhas;
 
-// Informa ao Node.js se os campos foram aprovados e a mensagem correspondente.
+// Representa somente a validação dos campos; não confirma cadastro nem autenticação.
 public class ResultadoValidacao extends Comunicado {
     private boolean valido;
     private String mensagem;

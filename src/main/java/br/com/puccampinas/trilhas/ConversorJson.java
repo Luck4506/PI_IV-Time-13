@@ -7,9 +7,10 @@ import java.time.format.DateTimeParseException;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonSyntaxException;
 
-// Confere os tipos do JSON e monta o pedido; as regras dos campos ficam no pedido.
+// Lê cadastro e login do protocolo TCP; os pedidos validam as regras dos campos.
 public class ConversorJson {
 
+    // Mantém a conversão do resultado de validação; a resposta final usa RespostaOperacao.
     public String converterResultado(ResultadoValidacao resultado) {
         Gson gson = new Gson();
         // Converte o objeto Java em uma String contendo JSON.
@@ -46,7 +47,7 @@ public class ConversorJson {
         return json.get(nomeDoCampo).getAsBoolean();
     }
 
-    public PedidoDeCadastro converterPedido(String texto) throws Exception {
+    public Comunicado converterPedido(String texto) throws Exception {
         // Interpreta o texto; erros de sintaxe recebem uma mensagem própria.
         JsonElement elemento;
         try {
@@ -67,10 +68,49 @@ public class ConversorJson {
 
         if(tipo == null) throw new Exception("Tipo de pedido invalido.");
 
-        if(!tipo.equals("VALIDAR_CADASTRO")) {
-            throw new Exception("Tipo de pedido nao suportado. Esperado: VALIDAR_CADASTRO.");
+        // Cada operação usa seu próprio método de leitura.
+        if(tipo.equals("VALIDAR_CADASTRO")) {
+            return lerCadastro(json);
+        } else if (tipo.equals("VALIDAR_LOGIN")) {
+            return lerLogin(json);
+        } else {
+            throw new Exception("Tipo de pedido nao suportado. Esperado: VALIDAR_CADASTRO ou VALIDAR_LOGIN.");
+        }
+    }
+
+    // Serializa um pedido já validado e normalizado, sem o tipo exclusivo do protocolo TCP.
+    // Este formato ainda depende do alinhamento com o endpoint do Node real.
+    public String converterCadastroParaNode(PedidoDeCadastro pedido) {
+        JsonObject json = new JsonObject();
+
+        json.addProperty("nome", pedido.getNome());
+        json.addProperty("email", pedido.getEmail());
+        json.addProperty("senha", pedido.getSenha());
+        json.addProperty("dataNascimento", pedido.getDataNascimento().toString());
+        json.addProperty("cadastroEducacional", pedido.isCadastroEducacional());
+        json.addProperty("termosAceitos", pedido.isTermosAceitos());
+
+        if(pedido.getPerfil() == Perfil.ESTUDANTE) {
+            json.addProperty("perfil", 1);
+            json.addProperty("anoEscolar", pedido.getAnoEscolar());
+        }
+        else {
+            json.addProperty("perfil", 2);
+            json.addProperty("codProfessor", pedido.getCodProfessor());
         }
 
+        if(pedido.getCodigoEscola() != null) {
+            json.addProperty("codigoEscola", pedido.getCodigoEscola());
+        }
+
+        if(pedido.getCodigoTurma() != null) {
+            json.addProperty("codigoTurma", pedido.getCodigoTurma());
+        }
+
+        return json.toString();
+    }
+
+    private PedidoDeCadastro lerCadastro(JsonObject json) throws Exception {
         // Lê textos e booleanos uma vez; obrigatoriedade e padrões são tratados no pedido.
         final String nome = lerTexto(json, "nome");
         final String senha = lerTexto(json, "senha");
@@ -91,7 +131,7 @@ public class ConversorJson {
         // Exige número inteiro no JSON, evitando converter textos ou truncar 1.5 para 1.
         if(json.get("anoEscolar") != null && !json.get("anoEscolar").isJsonNull()) {
             if(json.get("anoEscolar").isJsonPrimitive() &&
-               json.get("anoEscolar").getAsJsonPrimitive().isNumber())
+                    json.get("anoEscolar").getAsJsonPrimitive().isNumber())
             {
                 try {
                     anoEscolar = json.get("anoEscolar").getAsBigDecimal().intValueExact();
@@ -147,6 +187,14 @@ public class ConversorJson {
 
         // O construtor executa validar(); dados inválidos impedem o retorno.
         return new PedidoDeCadastro(nome, dataNascimento, senha, email, perfil, anoEscolar, codProfessor,
-                                    cadastroEducacional, codigoEscola, termosAceitos, codigoTurma);
+                cadastroEducacional, codigoEscola, termosAceitos, codigoTurma);
+    }
+
+    // Lê os campos do login; o construtor verifica e-mail e senha não vazia.
+    private PedidoDeLogin lerLogin(JsonObject json) throws Exception {
+        final String email = lerTexto(json, "email");
+        final String senha = lerTexto(json, "senha");
+
+        return new PedidoDeLogin(email, senha);
     }
 }
