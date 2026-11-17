@@ -45,7 +45,7 @@ NODE
 }
 
 [[ -n "$(iphone available)" ]] || fail 'Nenhum iPhone simulado está instalado. Instale um runtime iOS no Xcode.'
-printf '\n%s\n' 'Preparando a API e conferindo MongoDB e Neo4j…'
+printf '\n%s\n' 'Preparando a API TCP e os bancos…'
 node "$TRILHA_ROOT/scripts/prepare-ios.mjs"
 if [[ "${1:-}" == --check ]]; then
   printf '\n%s\n' 'Preparação concluída. Há um simulador iPhone disponível.'
@@ -73,7 +73,7 @@ fi
 
 cd "$TRILHA_ROOT/frontend"
 "$TRILHA_FLUTTER" pub get
-printf '\n%s\n' 'Abrindo o Trilha no iPhone. Mantenha este terminal aberto.' \
+printf '\n%s\n' 'Abrindo o Gabariteii no iPhone. Mantenha este terminal aberto.' \
   'Durante a execução: r atualiza o app; q encerra a execução. A API continua em segundo plano.'
 exec "$TRILHA_FLUTTER" run -d "$TRILHA_DEVICE" --debug \
-  --dart-define=API_BASE_URL=http://127.0.0.1:3000
+  --dart-define-from-file="$TRILHA_ROOT/.local/frontend-tcp.json"

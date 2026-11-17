@@ -1,220 +1,115 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import jwt from 'jsonwebtoken';
-import { ObjectId } from 'mongodb';
-import neo4j from 'neo4j-driver';
 import { z } from 'zod';
-import { hashPassword, verifyPassword } from './security.js';
-import { schoolYearSchema, mountTrailRoutes, TrailError } from './trails.js';
+import { ApiError } from './api-error.js';
+import { mountAccountRoutes } from './auth/account-routes.js';
+import { createJavaValidator } from './auth/java-validator.js';
+import { createSessions, role } from './auth/session.js';
+import { countExamQuestions } from './exam-questions.js';
+import { mountQuestionRoutes, questionView } from './question-routes.js';
+import { mountClassRoutes } from './school/class-routes.js';
+import { createClassService } from './school/classes.js';
+import { mountActivityRoutes } from './student/activity-routes.js';
+import { criarRotas } from './tcp-router.js';
+import { mountTrailRoutes } from './trails.js';
 
-const email = z.string().trim().toLowerCase().email().max(254);
-const password = z.string().min(8).max(128);
-const registration = z.object({
-  nome: z.string().trim().min(2).max(120), email, senha: password,
-  perfil: z.enum(['student', 'teacher']),
-  anoEscolar: schoolYearSchema.optional(),
-  cadastroEducacional: z.boolean().optional(),
-  codigoEscola: z.string().trim().max(80).optional(), termosAceitos: z.literal(true),
-}).strict().refine(x => x.perfil !== 'student' || !!x.anoEscolar, {
-  message: 'Informe o ano escolar.', path: ['anoEscolar'],
-}).refine(x => x.perfil !== 'teacher' || x.cadastroEducacional !== false, {
-  message: 'O cadastro de professor é sempre educacional.', path: ['cadastroEducacional'],
-}).refine(x => x.cadastroEducacional !== true || !!x.codigoEscola?.trim(), {
-  message: 'Selecione sua escola.', path: ['codigoEscola'],
-}).refine(x => x.cadastroEducacional !== false || !x.codigoEscola, {
-  message: 'Ative o cadastro educacional para selecionar uma escola.', path: ['codigoEscola'],
-});
-const login = z.object({ email, senha: password, perfil: z.enum(['student', 'teacher']).optional() }).strict();
-const profile = z.object({
-  nome: z.string().trim().min(2).max(120).optional(),
-  anoEscolar: schoolYearSchema.optional(),
-  codigoEscola: z.string().trim().max(80).optional(),
-}).strict().refine(x => Object.keys(x).length > 0, 'Informe um campo para atualizar.');
-const pageSchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-  offset: z.coerce.number().int().min(0).max(100000).default(0),
-});
-const publicUser = user => ({
-  id: user._id.toString(), nome: user.nome, email: user.email, perfil: user.perfil,
-  ...(user.anoEscolar ? { anoEscolar: user.anoEscolar } : {}),
-  ...(user.codigoEscola ? { codigoEscola: user.codigoEscola } : {}),
-  cadastroEducacional: user.perfil === 'teacher' || !!user.codigoEscola,
-  criadoEm: user.criadoEm,
-});
-function serialize(value) {
-  if (neo4j.isInt(value)) return value.inSafeRange() ? value.toNumber() : value.toString();
-  if (Array.isArray(value)) return value.map(serialize);
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k,v]) => [k, serialize(v)]));
-  return value;
-}
-// Only approved question fields leave the graph; answer keys are never returned here.
-export function questionView(properties) {
-  const allowed = ['id', 'nome', 'questao', 'enunciado', 'ano', 'banca', 'numero',
-    'alternativaA', 'alternativaB', 'alternativaC', 'alternativaD', 'alternativaE',
-    'topicosRelacionados', 'imagens', 'disciplina'];
-  return serialize(Object.fromEntries(allowed.filter(k => properties[k] !== undefined).map(k => [k, properties[k]])));
+export { questionView } from './question-routes.js';
+
+export function createApp({
+  databases,
+  config,
+  databaseReady = () => true,
+  emailOptions = {},
+  javaValidator = createJavaValidator(config.JAVA_VALIDATOR_PORT ?? 3001),
+}) {
+  const app = criarRotas(respostaDeErro, path => {
+    if (path.startsWith('/api/') && !databaseReady()) {
+      throw new ApiError(503, 'Conexão com o banco indisponível. Aguarde e tente novamente.');
+    }
+  });
+
+  const sessions = createSessions(databases.users, config.JWT_SECRET);
+  const classes = createClassService(databases);
+  const auth = sessions.authenticate;
+  const student = role('student');
+
+  mountHealthRoutes(app, databases, config, databaseReady);
+  mountAccountRoutes(app, { databases, config, sessions, classes, javaValidator, emailOptions });
+  mountQuestionRoutes(app, auth, student, databases);
+  mountClassRoutes(app, auth, databases, classes);
+  mountActivityRoutes(app, auth, databases);
+  mountTrailRoutes(app, [auth, student], databases, questionView);
+
+  return app.atender;
 }
 
-export function createApp({ databases, config, databaseReady = () => true }) {
-  const app = express();
-  app.disable('x-powered-by');
-  app.use(helmet());
-  const origins = config.CORS_ORIGINS.split(',').map(x => x.trim());
-  app.use(cors({ origin: origins, credentials: true }));
-  app.use(express.json({ limit: '32kb' }));
-  const cookieName = 'trilha_session';
-  const cookieOptions = { httpOnly: true, sameSite: 'strict', secure: config.COOKIE_SECURE === 'true',
-    path: '/api', maxAge: 12 * 60 * 60 * 1000 };
-  const clearCookie = res => res.clearCookie(cookieName, { ...cookieOptions, maxAge: undefined });
-  const cookieToken = req => {
-    const value = req.headers.cookie?.split(';').map(x => x.trim()).find(x => x.startsWith(cookieName + '='));
-    try { return value ? decodeURIComponent(value.slice(cookieName.length + 1)) : null; }
-    catch { return null; }
-  };
-  app.use('/api', (req, res, next) => {
-    res.set('Cache-Control', 'no-store');
-    if (!databaseReady()) {
-      return res.status(503).json({ erro: 'Conexão com o banco indisponível. Aguarde e tente novamente.' });
-    }
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-      if (req.headers.origin && !origins.includes(req.headers.origin)) {
-        return res.status(403).json({ erro: 'Origem da solicitação não autorizada.' });
-      }
-      if (cookieToken(req) && !req.headers.authorization && req.headers['x-trilha-client'] !== 'app') {
-        return res.status(403).json({ erro: 'Solicitação inválida. Reabra o aplicativo e tente novamente.' });
-      }
-    }
-    next();
-  });
-  const authLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30,
-    standardHeaders: 'draft-8', legacyHeaders: false,
-    message: { erro: 'Muitas tentativas. Aguarde alguns minutos.' } });
-  const issueToken = user => jwt.sign({ v: user.tokenVersion }, config.JWT_SECRET, {
-    subject: user._id.toString(), expiresIn: '12h', algorithm: 'HS256',
-    issuer: 'trilha-api', audience: 'trilha-app',
-  });
-  const sessionResponse = (res, user, status = 200) => {
-    const token = issueToken(user);
-    res.cookie(cookieName, token, cookieOptions);
-    return res.status(status).json({ token, usuario: publicUser(user) });
-  };
-  const auth = async (req, res, next) => {
-    const token = req.headers.authorization
-      ? req.headers.authorization.match(/^Bearer (\S+)$/)?.[1] : cookieToken(req);
-    if (!token) return res.status(401).json({ erro: 'Entre na sua conta para continuar.' });
-    let payload;
-    try {
-      payload = jwt.verify(token, config.JWT_SECRET, { algorithms: ['HS256'], issuer: 'trilha-api', audience: 'trilha-app' });
-      if (!ObjectId.isValid(payload.sub)) throw new Error('invalid subject');
-    } catch {
-      return res.status(401).json({ erro: 'Sessão inválida ou expirada. Entre novamente.' });
-    }
-    try {
-      const user = await databases.users.findOne({ _id: new ObjectId(payload.sub) });
-      if (!user || user.tokenVersion !== payload.v) {
-        return res.status(401).json({ erro: 'Sessão encerrada. Entre novamente.' });
-      }
-      req.user = user;
-      next();
-    } catch (error) { next(error); }
-  };
+function mountHealthRoutes(app, databases, config, databaseReady) {
+  const graphHost = config.NEO4J_URI ? new URL(config.NEO4J_URI).hostname : null;
+  const graphSource = ['localhost', '127.0.0.1', '[::1]'].includes(graphHost) ? 'local' : 'remoto';
 
-  app.get('/health/live', (_req, res) => res.json({ status: 'ok' }));
-  app.get('/health/ready', async (_req, res) => {
-    if (!databaseReady()) return res.status(503).json({ status: 'indisponivel', mongodb: false, neo4j: false });
-    const checks = await Promise.allSettled([
-      databases.db.command({ ping: 1 }), databases.query('RETURN 1 AS ok'),
-    ]);
-    const ok = checks.every(x => x.status === 'fulfilled');
-    res.status(ok ? 200 : 503).json({ status: ok ? 'ok' : 'indisponivel',
-      mongodb: checks[0].status === 'fulfilled', neo4j: checks[1].status === 'fulfilled' });
-  });
-
-  app.post('/api/auth/cadastro', authLimit, async (req, res) => {
-    const data = registration.parse(req.body);
-    if (data.perfil === 'teacher' && config.ALLOW_TEACHER_REGISTRATION !== 'true') {
-      return res.status(403).json({ erro: 'Cadastro de professor depende de autorização da escola.' });
-    }
-    const now = new Date();
-    const user = { _id: new ObjectId(), nome: data.nome, email: data.email, perfil: data.perfil,
-      senhaHash: await hashPassword(data.senha), termosAceitosEm: now,
-      criadoEm: now, atualizadoEm: now, tokenVersion: 0,
-      ...(data.perfil === 'student' ? { anoEscolar: data.anoEscolar } : {}),
-      ...((data.perfil === 'teacher' || data.cadastroEducacional === true) && data.codigoEscola
-        ? { codigoEscola: data.codigoEscola } : {}),
-    };
-    await databases.users.insertOne(user);
-    sessionResponse(res, user, 201);
-  });
-  app.post('/api/auth/login', authLimit, async (req, res) => {
-    const data = login.parse(req.body);
-    const user = await databases.users.findOne({ email: data.email });
-    const valid = await verifyPassword(data.senha, user?.senhaHash ?? dummyHash);
-    if (!user || !valid || (data.perfil && user.perfil !== data.perfil)) {
-      return res.status(401).json({ erro: 'E-mail, senha ou perfil incorretos.' });
-    }
-    sessionResponse(res, user);
-  });
-  app.get('/api/usuarios/me', auth, (req, res) => res.json({ usuario: publicUser(req.user) }));
-  app.patch('/api/usuarios/me', auth, async (req, res) => {
-    const data = profile.parse(req.body);
-    if ((req.user.perfil === 'student' && data.codigoEscola !== undefined) ||
-        (req.user.perfil === 'teacher' && data.anoEscolar !== undefined)) {
-      return res.status(400).json({ erro: 'Campo incompatível com o perfil.' });
-    }
-    const user = await databases.users.findOneAndUpdate({ _id: req.user._id },
-      { $set: { ...data, atualizadoEm: new Date() } }, { returnDocument: 'after' });
-    res.json({ usuario: publicUser(user) });
-  });
-  app.post('/api/auth/logout', auth, async (req, res) => {
-    await databases.users.updateOne({ _id: req.user._id }, { $inc: { tokenVersion: 1 } });
-    clearCookie(res);
-    res.status(204).end();
-  });
-
-  app.get('/api/disciplinas', auth, async (_req, res) => {
-    const result = await databases.query('MATCH (d:Disciplina) RETURN properties(d) AS disciplina ORDER BY d.nome');
-    res.json({ disciplinas: result.records.map(r => serialize(r.get('disciplina'))) });
-  });
-  app.get('/api/questoes', auth, async (req, res) => {
-    const { limit, offset } = pageSchema.parse(req.query);
-    const result = await databases.query(`MATCH (q:Questao)
-      RETURN properties(q) AS questao ORDER BY q.id SKIP $offset LIMIT $limit`,
-    { offset: neo4j.int(offset), limit: neo4j.int(limit) });
-    res.json({ questoes: result.records.map(r => questionView(r.get('questao'))), limit, offset });
-  });
-  app.get('/api/questoes/:id', auth, async (req, res) => {
-    const id = z.string().min(1).max(160).parse(req.params.id);
-    const result = await databases.query('MATCH (q:Questao {id: $id}) RETURN properties(q) AS questao LIMIT 1', { id });
-    if (!result.records.length) return res.status(404).json({ erro: 'Questão não encontrada.' });
-    res.json({ questao: questionView(result.records[0].get('questao')) });
-  });
-  app.post('/api/questoes/:id/responder', auth, async (req, res) => {
-    const id = z.string().min(1).max(160).parse(req.params.id);
-    const { alternativa } = z.object({ alternativa: z.enum(['A', 'B', 'C', 'D', 'E']) }).strict().parse(req.body);
-    const result = await databases.query(`MATCH (q:Questao {id: $id})
-      RETURN coalesce(q.gabarito, q.gabarito_declarado, q.respostaCorreta) AS gabarito LIMIT 1`, { id });
-    if (!result.records.length) return res.status(404).json({ erro: 'Questão não encontrada.' });
-    const gabarito = String(result.records[0].get('gabarito') ?? '').trim().toUpperCase();
-    if (!['A','B','C','D','E'].includes(gabarito)) return res.json({
-      corrigida: false, mensagem: 'Esta questão ainda não tem gabarito cadastrado.',
+  app.get('/health/live', (_req, res) => {
+    res.json({
+      status: 'ok',
+      protocolo: 'trilha-tcp',
+      mongodb: databaseReady(),
+      grafo: graphSource,
     });
-    res.json({ corrigida: true, correta: alternativa === gabarito, gabarito });
   });
-  mountTrailRoutes(app, auth, databases, questionView);
-  app.use((_req, res) => res.status(404).json({ erro: 'Rota não encontrada.' }));
-  app.use((error, _req, res, _next) => {
-    if (error instanceof TrailError) return res.status(error.status).json({ erro: error.message });
-    if (error instanceof z.ZodError) return res.status(400).json({ erro: 'Revise os dados informados.', campos: error.issues.map(x => ({ campo: x.path.join('.'), mensagem: x.message })) });
-    if (error.code === 11000) return res.status(409).json({ erro: 'Este e-mail já está cadastrado.' });
-    if (error.type === 'entity.parse.failed') return res.status(400).json({ erro: 'JSON inválido.' });
-    if (error.type === 'entity.too.large') return res.status(413).json({ erro: 'Dados acima do limite permitido.' });
-    console.error('Falha na API:', error.name, error.code ?? 'sem_codigo');
-    res.status(503).json({ erro: 'Serviço indisponível. Tente novamente em instantes.' });
+
+  app.get('/health/ready', async (_req, res) => {
+    if (!databaseReady()) {
+      return res.status(503).json({
+        status: 'indisponivel',
+        mongodb: false,
+        neo4j: false,
+        catalogo: false,
+      });
+    }
+
+    // Uma conexão aberta com o grafo ainda pode ter o catálogo vazio.
+    const [mongo, graph] = await Promise.allSettled([
+      databases.db.command({ ping: 1 }),
+      countExamQuestions(databases),
+    ]);
+
+    const mongodb = mongo.status === 'fulfilled';
+    const neo4j = graph.status === 'fulfilled';
+    const catalogo = neo4j && graph.value > 0;
+    const ready = mongodb && catalogo;
+
+    return res.status(ready ? 200 : 503).json({
+      status: ready ? 'ok' : 'indisponivel',
+      mongodb,
+      neo4j,
+      catalogo,
+    });
   });
-  return app;
 }
-// Fixed dummy hash keeps a nonexistent account on the same password verification path.
-const dummyHash = `scrypt$0123456789abcdef0123456789abcdef$${'0'.repeat(128)}`;
+
+function respostaDeErro(erro, caminho) {
+  if (erro instanceof ApiError) {
+    return { status: erro.status, corpo: { erro: erro.message } };
+  }
+
+  if (erro instanceof z.ZodError) {
+    const campos = erro.issues.map(issue => ({
+      campo: issue.path.join('.'),
+      mensagem: issue.message,
+    }));
+
+    return { status: 400, corpo: { erro: 'Revise os dados informados.', campos } };
+  }
+
+  if (erro?.code === 11000) {
+    const duplicateEmail = erro.keyPattern
+      ? Boolean(erro.keyPattern.email)
+      : caminho === '/api/auth/cadastro';
+    const mensagem = duplicateEmail
+      ? 'Este e-mail já está cadastrado.'
+      : 'O registro já existe. Atualize a tela e tente novamente.';
+
+    return { status: 409, corpo: { erro: mensagem } };
+  }
+
+  // O detalhe pode conter campos do banco. Registramos só o tipo e o código.
+  console.error('Falha na API:', erro?.name ?? 'Erro', erro?.code ?? 'sem_codigo');
+  return { status: 503, corpo: { erro: 'Serviço indisponível. Tente novamente em instantes.' } };
+}

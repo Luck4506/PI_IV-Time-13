@@ -1,259 +1,257 @@
-part of '../../telas_professor.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-class ClassDetailScreen extends StatelessWidget {
-  const ClassDetailScreen({
-    super.key,
-    this.classInfo = const ClassInfo('3º A', 31, 68),
-  });
-  final ClassInfo classInfo;
+import '../../remote_content.dart';
+import '../../services/api_service.dart';
+import '../../services/classroom_api.dart';
+import '../../widgets.dart';
+import 'tela_detalhes_estudante.dart';
+import 'painel_quartis.dart';
 
-  static const route = '/professor/turma';
+class ClassReportLink extends StatelessWidget {
+  const ClassReportLink({super.key, required this.classroom});
+
+  final Classroom classroom;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${classInfo.name} · Matemática'),
-        actions: [
-          IconButton(
-            onPressed: () => showPendingFeature(context),
-            icon: const Icon(Icons.more_horiz_rounded),
+    return SurfaceCard(
+      padding: EdgeInsets.zero,
+      child: ListTile(
+        leading: const Icon(Icons.groups_outlined),
+        title: Text(classroom.name),
+        subtitle: Text(classroom.subject),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.push<void>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ClassDetailScreen(classroom: classroom),
           ),
-        ],
+        ),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: PageFrame(
-            maxWidth: 880,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+}
+
+class ClassDetailScreen extends StatefulWidget {
+  const ClassDetailScreen({super.key, required this.classroom});
+
+  final Classroom classroom;
+
+  @override
+  State<ClassDetailScreen> createState() => _ClassDetailScreenState();
+}
+
+class _ClassDetailScreenState extends State<ClassDetailScreen> {
+  final api = ClassroomApi();
+  bool inviting = false;
+  bool _renewingCode = false;
+  bool _showClassCode = true;
+
+  Future<void> _invite(String classId) async {
+    if (inviting) return;
+
+    setState(() => inviting = true);
+    try {
+      final code = await api.inviteTeacher(classId);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Convite de professor'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 10,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Envie para um professor da mesma escola. O código vale por 24 horas e pode ser usado uma vez.',
+              ),
+              SelectableText(
+                code,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => _copy(code, 'Convite copiado.'),
+              child: const Text('Copiar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fechar'),
+            ),
+          ],
+        ),
+      );
+    } on ApiException catch (failure) {
+      _message(failure.message);
+    } finally {
+      if (mounted) setState(() => inviting = false);
+    }
+  }
+
+  Future<void> _rotate(String classId, VoidCallback refresh) async {
+    if (_renewingCode) return;
+    setState(() => _renewingCode = true);
+
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Renovar código da turma?'),
+          content: const Text(
+            'O código anterior deixará de funcionar para novas matrículas.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Renovar'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+
+      await api.rotateStudentCode(classId);
+      if (mounted) refresh();
+    } on ApiException catch (failure) {
+      _message(failure.message);
+    } finally {
+      if (mounted) setState(() => _renewingCode = false);
+    }
+  }
+
+  Future<void> _copy(String text, String message) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      _message(message);
+    } on PlatformException {
+      _message('Não foi possível copiar. Tente novamente.');
+    }
+  }
+
+  void _message(String text) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    }
+  }
+
+  String _summary(ClassReport report) {
+    final students = report.totalStudents;
+    final answers = report.score.answers;
+    final studentsText = students == 1 ? '1 aluno' : '$students alunos';
+    final answersText = answers == 1 ? '1 resposta' : '$answers respostas';
+    return '$studentsText · $answersText · ${report.score.label}';
+  }
+
+  Widget _classCodeCard(Classroom classroom, VoidCallback refresh) {
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 8,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Código para alunos',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              IconButton(
+                tooltip: _showClassCode ? 'Ocultar código' : 'Mostrar código',
+                icon: Icon(
+                  _showClassCode ? Icons.expand_less : Icons.expand_more,
+                ),
+                onPressed: () => setState(() {
+                  _showClassCode = !_showClassCode;
+                }),
+              ),
+            ],
+          ),
+          if (_showClassCode) ...[
+            const Text(
+              'Compartilhe o código para que os alunos entrem na turma pelo próprio perfil.',
+            ),
+            SelectableText(classroom.code),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                Row(
-                  children: [
-                    StatPill(
-                      icon: Icons.groups_rounded,
-                      value: '${classInfo.students}',
-                      label: 'estudantes',
-                      color: AppColors.primary,
-                    ),
-                    SizedBox(width: 10),
-                    StatPill(
-                      icon: Icons.task_alt_rounded,
-                      value: '${classInfo.average}%',
-                      label: 'média',
-                      color: AppColors.mint,
-                    ),
-                  ],
+                OutlinedButton(
+                  onPressed: () => _copy(classroom.code, 'Código copiado.'),
+                  child: const Text('Copiar código'),
                 ),
-                const SizedBox(height: 24),
-                const SectionHeader(
-                  title: 'Mapa de aprendizagem',
-                  subtitle: 'Domínio estimado por assunto',
-                ),
-                const SizedBox(height: 14),
-                SurfaceCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const _HeatRow(
-                        topic: 'Razão e proporção',
-                        values: [.9, .7, .8, .9, .6, .8, .7],
-                        color: AppColors.mint,
-                      ),
-                      const SizedBox(height: 14),
-                      const _HeatRow(
-                        topic: 'Equações',
-                        values: [.3, .4, .7, .2, .6, .4, .3],
-                        color: AppColors.coral,
-                      ),
-                      const SizedBox(height: 14),
-                      const _HeatRow(
-                        topic: 'Funções',
-                        values: [.5, .6, .4, .7, .5, .6, .4],
-                        color: AppColors.amber,
-                      ),
-                      const SizedBox(height: 14),
-                      const _HeatRow(
-                        topic: 'Gráficos',
-                        values: [.7, .8, .6, .6, .7, .8, .6],
-                        color: AppColors.primary,
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: const [
-                          Text(
-                            'menor domínio',
-                            style: TextStyle(
-                              color: AppColors.muted,
-                              fontSize: 10,
-                            ),
-                          ),
-                          SizedBox(width: 6),
-                          _LegendDot(color: Color(0xFFEAF5F1)),
-                          _LegendDot(color: Color(0xFF9DDCCB)),
-                          _LegendDot(color: AppColors.mint),
-                          SizedBox(width: 6),
-                          Text(
-                            'maior',
-                            style: TextStyle(
-                              color: AppColors.muted,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                if (classroom.canInviteTeachers) ...[
+                  TextButton(
+                    onPressed: inviting ? null : () => _invite(classroom.id),
+                    child: const Text('Convidar professor'),
                   ),
-                ),
-                const SizedBox(height: 26),
-                SectionHeader(
-                  title: 'Estudantes',
-                  subtitle: 'Exemplo de estudantes · ordenados por necessidade de apoio',
-                  action: IconButton.outlined(
-                    onPressed: () => showPendingFeature(context),
-                    icon: const Icon(Icons.tune_rounded),
+                  TextButton(
+                    onPressed: _renewingCode
+                        ? null
+                        : () => _rotate(classroom.id, refresh),
+                    child: const Text('Renovar código'),
                   ),
-                ),
-                const SizedBox(height: 14),
-                SurfaceCard(
-                  padding: EdgeInsets.zero,
-                  child: Column(
-                    children: [
-                      _StudentRow(
-                        student: StudentProfiles.joao,
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          StudentDetailScreen.route,
-                          arguments: StudentProfiles.joao,
-                        ),
-                      ),
-                      const Divider(height: 1, indent: 18, endIndent: 18),
-                      _StudentRow(
-                        student: StudentProfiles.marina,
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          StudentDetailScreen.route,
-                          arguments: StudentProfiles.marina,
-                        ),
-                      ),
-                      const Divider(height: 1, indent: 18, endIndent: 18),
-                      _StudentRow(
-                        student: StudentProfiles.rafael,
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          StudentDetailScreen.route,
-                          arguments: StudentProfiles.rafael,
-                        ),
-                      ),
-                      const Divider(height: 1, indent: 18, endIndent: 18),
-                      _StudentRow(
-                        student: StudentProfiles.beatriz,
-                        onTap: () => Navigator.pushNamed(
-                          context,
-                          StudentDetailScreen.route,
-                          arguments: StudentProfiles.beatriz,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                ],
               ],
             ),
-          ),
-        ),
+          ],
+        ],
       ),
     );
   }
-}
-
-class _HeatRow extends StatelessWidget {
-  const _HeatRow({
-    required this.topic,
-    required this.values,
-    required this.color,
-  });
-  final String topic;
-  final List<double> values;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          topic,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 7),
-        Row(
-          children: values
-              .map(
-                (value) => Expanded(
-                  child: Container(
-                    height: 24,
-                    margin: const EdgeInsets.only(right: 5),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: .18 + value * .75),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
+    final classroom = widget.classroom;
+    return Scaffold(
+      appBar: AppBar(title: Text(classroom.name)),
+      body: RemoteContent<ClassReport>(
+        load: () => api.report(classroom.id),
+        builder: (context, report, refresh) => ScrollPage(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: AspectRatio(
+                aspectRatio: 3,
+                child: Image.asset(
+                  'assets/images/turma_ilustracao.jpg',
+                  fit: BoxFit.cover,
+                  excludeFromSemantics: true,
+                ),
+              ),
+            ),
+            SectionHeader(
+              title: 'Desempenho em ${report.classroom.subject}',
+              subtitle: _summary(report),
+              action: IconButton(
+                tooltip: 'Atualizar relatório',
+                icon: const Icon(Icons.refresh),
+                onPressed: refresh,
+              ),
+            ),
+            _classCodeCard(report.classroom, refresh),
+            QuartilePanel(
+              report: report,
+              onStudent: (student) => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => StudentDetailScreen(
+                    classroom: classroom,
+                    studentId: student.id,
                   ),
                 ),
-              )
-              .toList(),
-        ),
-      ],
-    );
-  }
-}
-
-class _LegendDot extends StatelessWidget {
-  const _LegendDot({required this.color});
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 15,
-    height: 9,
-    margin: const EdgeInsets.only(right: 3),
-    decoration: BoxDecoration(
-      color: color,
-      borderRadius: BorderRadius.circular(3),
-    ),
-  );
-}
-
-class _StudentRow extends StatelessWidget {
-  const _StudentRow({required this.student, required this.onTap});
-  final StudentProfileData student;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
-      leading: InitialAvatar(
-        initials: student.initials,
-        size: 42,
-        color: student.accentColor,
-      ),
-      title: Text(student.name, style: Theme.of(context).textTheme.titleMedium),
-      subtitle: Text(student.listDetail),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '${student.accuracy}%',
-            style: TextStyle(
-              color: student.accentColor,
-              fontWeight: FontWeight.w900,
+              ),
             ),
-          ),
-          const SizedBox(width: 5),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
-        ],
+          ],
+        ),
       ),
     );
   }

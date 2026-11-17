@@ -1,9 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { planNextTrail, planQuestionCandidates, contentStages, diverseSample, schoolYearSchema } from '../src/trails.js';
+import { ObjectId } from 'mongodb';
+import { diagnosticExamples } from '../src/exam-questions.js';
+import { recordReading } from '../src/trail-progress.js';
+import { planNextTrail, planQuestionCandidates, contentStages, diverseSample, schoolYearSchema, createTrailService } from '../src/trails.js';
 
 const q = (id, disciplina, topic, key = 'A') => ({ id, nome: id, disciplina,
-  conteudos: [topic], gabarito: key, alternativaA: 'A', alternativaB: 'B', alternativaC: 'C' });
+  conteudos: [topic], origem: 'vestibular', banca: 'Prova de teste', caderno: 'Modelo A',
+  ano: 2025, numero: 1, paginaProva: 2, provaUrl: 'https://example.test/prova.pdf',
+  gabaritoUrl: 'https://example.test/gabarito.pdf', gabarito: key, alternativaA: 'A', alternativaB: 'B', alternativaC: 'C', alternativaD: 'D' });
 const source = entries => ({ itens: entries.map(([questaoId, correta]) => ({ questaoId, resposta: { corrigida: true, correta } })) });
 const random = () => 0.35;
 
@@ -40,11 +45,18 @@ test('amostragem varia com o sorteio e preserva diversidade de temas', () => {
   assert.notDeepEqual(a.map(x=>x.id),b.map(x=>x.id));
   assert.equal(new Set(a.map(x=>x.disciplina)).size,3);
 });
-test('ano escolar tem opções fechadas e normaliza o formato legado', () => {
-  assert.equal(schoolYearSchema.parse('3º ano'),'3º ano do Ensino Médio');
-  assert.equal(schoolYearSchema.parse('6º ano do Ensino Fundamental'),'6º ano do Ensino Fundamental');
-  assert.equal(schoolYearSchema.parse('Outro'),'Outro');
-  assert.throws(()=>schoolYearSchema.parse('qualquer texto'));
+test('ano escolar aceita os três anos do Ensino Médio e a opção Outro', () => {
+  for (const year of [1, 2, 3]) {
+    const fullYear = `${year}º ano do Ensino Médio`;
+    assert.equal(schoolYearSchema.parse(fullYear), fullYear);
+    assert.equal(schoolYearSchema.parse(`${year}º ano`), fullYear);
+  }
+
+  assert.equal(schoolYearSchema.parse('Outro'), 'Outro');
+
+  for (const invalid of ['6º ano', '6º ano do Ensino Fundamental', 0, 'qualquer texto']) {
+    assert.throws(() => schoolYearSchema.parse(invalid));
+  }
 });
 test('a trilha recomenda conteúdos distintos e mantém a prática dentro de cada conteúdo', () => {
   const catalog={questions:[q('ERRO','Física','Queda livre'),q('OUTRA-QUEDA','Física','Queda livre'),
@@ -76,4 +88,202 @@ test('exploração não reinsere questões já acertadas ao agrupar a prática d
   const plan = planNextTrail(source([['FEITA', true]]), catalog, 2, random);
   assert.ok(plan.itens.every(x => x.questaoId !== 'FEITA'));
   assert.deepEqual(new Set(plan.itens.map(x => x.questaoId)), new Set(['NOVA', 'ENERGIA']));
+});
+
+test('a seta MAIS_DIFICIL_QUE também prioriza uma alternativa mais fácil no reforço', () => {
+  const missed = { ...q('ERRO', 'Física', 'Circuitos'), dificuldade: 2 };
+  const easier = { ...q('FACIL', 'Física', 'Circuitos'), dificuldade: 1 };
+  const harder = { ...q('DIFICIL', 'Física', 'Circuitos'), dificuldade: 3 };
+  const catalog = {
+    questions: [missed, easier, harder],
+    edges: [
+      { de: 'ERRO', para: 'FACIL', tipo: 'MAIS_DIFICIL_QUE' },
+      { de: 'FACIL', para: 'ERRO', tipo: 'MAIS_FACIL_QUE' },
+      { de: 'DIFICIL', para: 'ERRO', tipo: 'MAIS_DIFICIL_QUE' },
+      { de: 'DIFICIL', para: 'ERRO', tipo: 'PARECIDA_COM' },
+    ],
+  };
+
+  const activity = source([['ERRO', false]]);
+  const candidates = planQuestionCandidates(activity, catalog, 2, random);
+  const [first] = candidates.itens;
+  assert.equal(first.questaoId, 'FACIL');
+  assert.equal(first.motivo.pontuacao, 125);
+  assert.deepEqual(first.motivo.relacoes, ['MAIS_FACIL_QUE']);
+  const onlyInverse = { ...catalog, edges: catalog.edges.filter(edge => edge.tipo !== 'MAIS_FACIL_QUE') };
+  assert.equal(planNextTrail(activity, onlyInverse, 2, random).itens[0].questaoId, 'FACIL');
+});
+
+test('questões autorais antigas podem estar no histórico mas saem das novas atividades', () => {
+  const old = { ...q('ANTIGA', 'A', 'Tópico'), origem: 'trilha-catalogo-v1', retirada: true };
+  const active = q('VESTIBULAR', 'A', 'Tópico');
+  const catalog = { questions: [old, active], edges: [] };
+
+  const retry = planNextTrail(source([['ANTIGA', false]]), catalog, 2, random);
+  assert.deepEqual(retry.itens.map(item => item.questaoId), ['VESTIBULAR']);
+  assert.equal(retry.itens[0].motivo.tipo, 'fundamento');
+});
+
+test('uma questão sem caderno e gabarito verificáveis não entra numa trilha nova', () => {
+  const catalog = {
+    questions: [
+      q('FEITA', 'A', 'Tema'),
+      { ...q('SEM_FONTE', 'A', 'Tema'), gabaritoUrl: undefined },
+      q('OFICIAL', 'A', 'Tema'),
+    ],
+    edges: [],
+  };
+  const trail = planNextTrail(source([['FEITA', true]]), catalog, 6, random);
+  assert.deepEqual(trail.itens.map(item => item.questaoId), ['OFICIAL']);
+});
+
+
+test('o diagnóstico de exemplo grava referências oficiais com a sequência A C D', async () => {
+  const keys = ['A', 'C', 'D'];
+  const questions = diagnosticExamples.map((id, index) => q(id, 'A', 'Tema', keys[index]));
+  const rows = [];
+  const graphCalls = [];
+  const databases = {
+    trails: {
+      async findOne() { return null; },
+      async insertOne(trail) { rows.push(trail); },
+    },
+    async query(cypher, parameters) {
+      graphCalls.push({ cypher, parameters });
+      if (cypher.includes('AS questao')) {
+        return { records: questions.map(question => ({ get: key => ({
+          questao: question, conteudos: question.conteudos, disciplinas: [question.disciplina],
+        })[key] })) };
+      }
+      return { records: [] };
+    },
+  };
+  const service = createTrailService(databases, ({ id }) => ({ id }));
+  const { trilha } = await service.start(new ObjectId(), {
+    modo: 'exemplo', tipo: 'diagnostico', chave: 'diagnostico-de-teste',
+  });
+  assert.deepEqual(trilha.itens.map(item => item.questaoId), diagnosticExamples);
+  assert.deepEqual(trilha.roteiro.map(item => item.correta), keys);
+  assert.equal(rows.length, 1);
+  assert(rows[0].itens.every(item => !item.questao));
+  assert.equal(graphCalls.length, 1);
+  assert.match(graphCalls[0].cypher, /UNWIND \$ids/);
+  assert.deepEqual(graphCalls[0].parameters.ids, diagnosticExamples);
+});
+
+test('abrir uma trilha consulta só os IDs salvos, inclusive os do histórico', async () => {
+  const saved = q('ANTIGA', 'Física', 'Cinemática');
+  const graphCalls = [];
+  const userId = new ObjectId();
+  const trail = {
+    _id: new ObjectId(),
+    usuarioId: userId,
+    tipo: 'diagnostico',
+    modo: 'normal',
+    status: 'em_andamento',
+    itens: [
+      { questaoId: saved.id, disciplina: saved.disciplina, conteudos: saved.conteudos },
+      { questaoId: 'INDISPONIVEL', disciplina: 'Física', conteudos: ['Óptica'] },
+    ],
+  };
+  const databases = {
+    trails: {
+      async findOne(filter) {
+        return filter._id?.equals(trail._id) && filter.usuarioId.equals(userId) ? trail : null;
+      },
+    },
+    async query(cypher, parameters) {
+      graphCalls.push({ cypher, parameters });
+      const fields = { questao: { ...saved, retirada: true }, conteudos: saved.conteudos, disciplinas: [saved.disciplina] };
+      return { records: [{ get: field => fields[field] }] };
+    },
+  };
+  const service = createTrailService(databases, ({ id }) => ({ id }));
+
+  await assert.rejects(service.get(trail._id.toString(), new ObjectId()), { status: 404 });
+  assert.equal(graphCalls.length, 0);
+
+  const { trilha, proximaTrilha } = await service.get(trail._id.toString(), userId);
+  assert.equal(proximaTrilha, null);
+  assert.deepEqual(trilha.itens.map(item => item.questao?.id ?? null), ['ANTIGA', null]);
+  assert.equal(graphCalls.length, 1);
+  assert.match(graphCalls[0].cypher, /UNWIND \$ids/);
+  assert.deepEqual(graphCalls[0].parameters.ids, ['ANTIGA', 'INDISPONIVEL']);
+});
+
+test('respostas concorrentes atualizam a mesma questão só uma vez', async () => {
+  const userId = new ObjectId();
+  const question = q('Q1', 'Física', 'Cinemática');
+  let trail = {
+    _id: new ObjectId(),
+    usuarioId: userId,
+    tipo: 'diagnostico',
+    modo: 'normal',
+    status: 'em_andamento',
+    versao: 1,
+    itens: [question, q('Q2', 'Física', 'Cinemática')].map(row => ({
+      questaoId: row.id,
+      disciplina: row.disciplina,
+      conteudos: row.conteudos,
+    })),
+  };
+  const gate = Promise.withResolvers();
+  let writes = 0;
+
+  const databases = {
+    trails: {
+      async findOne() { return { ...trail }; },
+      async findOneAndUpdate(filter, update) {
+        if (++writes === 2) gate.resolve();
+        await gate.promise;
+        if (filter.versao !== trail.versao) return null;
+
+        trail = { ...trail, ...update.$set, versao: trail.versao + update.$inc.versao };
+        return trail;
+      },
+    },
+    async query() {
+      const fields = {
+        questao: question,
+        conteudos: question.conteudos,
+        disciplinas: [question.disciplina],
+      };
+      return { records: [{ get: field => fields[field] }] };
+    },
+  };
+
+  const service = createTrailService(databases, ({ id }) => ({ id }));
+  const answer = () => service.answer(trail._id.toString(), question.id, 'A', userId);
+  const [first, second] = await Promise.all([answer(), answer()]);
+
+  assert.equal(trail.versao, 2);
+  assert.equal(first.trilha.respondidas, 1);
+  assert.deepEqual(second.resposta, first.resposta);
+  await assert.rejects(service.answer(trail._id.toString(), question.id, 'B', userId), { status: 409 });
+});
+
+test('uma confirmação de leitura atrasada preserva a versão mais recente', async () => {
+  let savedVersion = 0;
+  const trail = { _id: new ObjectId(), usuarioId: new ObjectId() };
+  const updates = [];
+  const databases = {
+    db: {
+      collection(name) {
+        assert.equal(name, 'progresso_conteudos');
+        return {
+          async updateOne(filter, update) {
+            updates.push(filter);
+            savedVersion = Math.max(savedVersion, update.$max.materialVersao);
+          },
+        };
+      },
+    },
+  };
+  const material = { _id: 'conteudo', blocos: [{ texto: 'Teoria' }] };
+
+  await recordReading(databases, trail, { ...material, versao: 2 });
+  await recordReading(databases, trail, { ...material, versao: 1 });
+
+  assert.deepEqual(updates[0], updates[1]);
+  assert.equal(savedVersion, 2);
 });

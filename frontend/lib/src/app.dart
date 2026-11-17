@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'services/api_service.dart';
 import 'telas_autenticacao.dart';
 import 'telas_estudante.dart';
 import 'telas_professor.dart';
 import 'theme.dart';
+import 'user_trail_view.dart';
+
+const _portugues = Locale('pt', 'BR');
 
 class TrilhaApp extends StatefulWidget {
   const TrilhaApp({super.key});
@@ -17,8 +21,11 @@ class _TrilhaAppState extends State<TrilhaApp> {
   late final api = ApiService.instance;
   late final requestedRoute =
       WidgetsBinding.instance.platformDispatcher.defaultRouteName;
-  bool restoring = true, hadSession = false;
+  bool restoring = true;
+  bool hadSession = false;
+  UserRole lastRole = UserRole.student;
   String? restoreError;
+
   String get homeRoute =>
       api.user?.role == 'teacher' ? TeacherShell.route : StudentShell.route;
 
@@ -38,12 +45,18 @@ class _TrilhaAppState extends State<TrilhaApp> {
   void _sessionChanged() {
     final ended = hadSession && api.user == null;
     hadSession = api.user != null;
+    if (api.user case final current?) {
+      lastRole = current.role == 'teacher'
+          ? UserRole.teacher
+          : UserRole.student;
+    }
     if (ended && !restoring) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && api.user == null) {
           navigator.currentState?.pushNamedAndRemoveUntil(
             LoginScreen.route,
             (_) => false,
+            arguments: lastRole,
           );
         }
       });
@@ -81,17 +94,33 @@ class _TrilhaAppState extends State<TrilhaApp> {
     return requestedRoute;
   }
 
+  Widget _trailPage(Object? arguments) {
+    final trailId = arguments is Map ? arguments['trilhaId'] : arguments;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Minha trilha')),
+      body: UserTrailView(initialTrailId: trailId is String ? trailId : null),
+    );
+  }
+
+  bool _roleAllows(String route) {
+    if (route.startsWith('/professor')) return api.user?.role == 'teacher';
+
+    final studentRoute =
+        route.startsWith('/aluno') ||
+        route.startsWith('/diagnostico') ||
+        route == NotificationsScreen.route ||
+        route == PracticeScreen.route;
+    return !studentRoute || api.user?.role == 'student';
+  }
+
   Route<void> _route(RouteSettings settings) {
     final name = settings.name ?? LoginScreen.route;
     final public = [LoginScreen.route, RegisterScreen.route].contains(name);
     Widget screen;
     if (!public && api.user == null) {
       screen = const LoginScreen(initialRole: UserRole.student);
-    } else if ((name.startsWith('/professor') && api.user?.role != 'teacher') ||
-        ((name.startsWith('/aluno') ||
-                name.startsWith('/diagnostico') ||
-                name == NotificationsScreen.route) &&
-            api.user?.role != 'student')) {
+    } else if (!_roleAllows(name)) {
       screen = Builder(
         builder: (context) => Scaffold(
           body: SafeArea(
@@ -127,22 +156,11 @@ class _TrilhaAppState extends State<TrilhaApp> {
         RegisterScreen.route => const RegisterScreen(),
         DiagnosticIntroScreen.route => const DiagnosticIntroScreen(),
         DiagnosticQuizScreen.route => const DiagnosticQuizScreen(),
-        DiagnosticResultScreen.route => const DiagnosticResultScreen(),
         StudentShell.route => const StudentShell(),
+        '/aluno/trilha' => _trailPage(settings.arguments),
         TeacherShell.route => const TeacherShell(),
         NotificationsScreen.route => const NotificationsScreen(),
         PracticeScreen.route => const PracticeScreen(),
-        MaterialDetailScreen.route => const MaterialDetailScreen(),
-        ClassDetailScreen.route => ClassDetailScreen(
-          classInfo: settings.arguments is ClassInfo
-              ? settings.arguments as ClassInfo
-              : ClassInfo.samples.first,
-        ),
-        StudentDetailScreen.route => StudentDetailScreen(
-          student: settings.arguments is StudentProfileData
-              ? settings.arguments as StudentProfileData
-              : StudentProfiles.marina,
-        ),
         _ =>
           api.user == null
               ? const LoginScreen(initialRole: UserRole.student)
@@ -187,7 +205,10 @@ class _TrilhaAppState extends State<TrilhaApp> {
       );
       return MaterialApp(
         key: ValueKey('boot-${restoreError != null}'),
-        title: 'Trilha',
+        title: appName,
+        locale: _portugues,
+        supportedLocales: const [_portugues],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         debugShowCheckedModeBanner: false,
         theme: buildTrilhaTheme(),
         onGenerateRoute: (_) =>
@@ -203,7 +224,10 @@ class _TrilhaAppState extends State<TrilhaApp> {
     return MaterialApp(
       key: const ValueKey('ready'),
       navigatorKey: navigator,
-      title: 'Trilha',
+      title: appName,
+      locale: _portugues,
+      supportedLocales: const [_portugues],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       debugShowCheckedModeBanner: false,
       theme: buildTrilhaTheme(),
       initialRoute: initialRoute,

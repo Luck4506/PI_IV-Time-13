@@ -1,142 +1,87 @@
-# Backend Trilha
+# Backend do Gabariteii
 
-API Node.js 22+ / Express para o Flutter. As credenciais ficam em `.env`, ignorado pelo Git.
+A API em Node.js recebe os pedidos do Flutter, autentica a conta e consulta os bancos. O cadastro e o login dependem do validador Java fornecido à parte. Para iniciar a API e abrir o aplicativo, siga o [README principal](../README.md).
 
-**Integrantes do grupo:** sigam primeiro o [README da raiz](../README.md). Basta colocar o arquivo privado recebido em `backend/.env` e executar `node scripts/iniciar.mjs` na raiz. O iniciador instala as dependências e confere os bancos; o `.env.example` é apenas um modelo sem credenciais reais.
+## Protocolo TCP
 
-## Separação dos dados
+A API escuta em `127.0.0.1:3002` por padrão. O aplicativo abre uma conexão TCP por pedido. O pedido e a resposta são objetos JSON em UTF-8, cada um terminado por uma quebra de linha. O Node recebe mensagens de até 64 KiB e envia respostas de até 8 MiB.
 
-- **MongoDB Atlas M0:** banco `trilha`, coleções `usuarios`, `trilhas`, `materiais_conteudo`, `progresso_conteudos` e `escolas`. A coleção `usuarios` armazena o cadastro: Nome, e-mail normalizado e único, senha protegida com scrypt, perfil, ano escolar ou código da escola e datas. A validação bloqueia campos não previstos. A coleção `trilhas` armazena o usuário, os IDs e a ordem das questões, os motivos da recomendação, as respostas e o histórico. A coleção `escolas` contém a instituição fictícia usada no seletor do cadastro. O catálogo de enunciados e alternativas permanece no Neo4j.
-- **Neo4j AuraDB Free:** grafo importado do `Projeto_integrador`, preservando rótulos, propriedades, relacionamentos, índices e restrições do dump. Questões são consultadas somente no grafo.
-- No navegador, a sessão dura até 12 horas e usa cookie HttpOnly com SameSite=Strict. Recarregar ou reabrir restaura a mesma conta após confirmação na API, sem armazenar senha ou token no localStorage. Sair revoga as sessões da conta e remove o cookie. O cliente nativo continua usando Bearer em memória e exige login ao reabrir.
+| Campo do pedido | Uso |
+| --- | --- |
+| `metodo` | Método da rota, como `GET` ou `POST` |
+| `caminho` | Caminho da rota, incluindo seus parâmetros de consulta |
+| `dados` | Objeto com os campos do pedido, quando a rota usa corpo |
+| `token` | Token de sessão nas rotas privadas |
 
-## Executar
+A resposta usa `status` numérico e `corpo` como objeto. O logout retorna status `204` com `corpo` vazio. O Node se conecta ao Java em `127.0.0.1:3001` usando [o formato do validador](../SCHEMA_E_VALIDACAO_JAVA.md).
 
-```sh
-cd backend
-npm ci
-# Na primeira instalação, copie .env.example para .env e configure as duas conexões.
-npm run db:init
-npm start
-```
+## Rotas da API
 
-Não substitua o `.env` já configurado. A API usa `http://127.0.0.1:3000` por padrão. Os bancos estão na nuvem; a API roda neste computador e precisa permanecer aberta durante os testes. Os planos gratuitos podem pausar por inatividade.
-
-Em outro terminal:
-
-```sh
-cd frontend
-flutter pub get
-flutter run -d web-server --web-hostname=127.0.0.1 --web-port=5173 --dart-define=API_BASE_URL=http://127.0.0.1:3000
-```
-
-O CORS permite somente `localhost:5173` e `127.0.0.1:5173`, conforme `.env`. No Android emulador, use `http://10.0.2.2:3000`; para um aparelho físico, configure o endereço do computador, a escuta de rede e HTTPS de acordo com o ambiente. Não inclua senhas dos bancos no Flutter.
-
-## Rotas
+### Conta e disponibilidade
 
 | Método | Rota | Uso |
-|---|---|---|
-| GET | `/health/live` | API em execução |
-| GET | `/health/ready` | Conectividade real com os dois bancos; 503 quando indisponível |
-| POST | `/api/auth/cadastro` | Criar conta e iniciar sessão |
-| POST | `/api/auth/login` | Autenticar conta existente |
-| GET | `/api/usuarios/me` | Ler o próprio cadastro |
-| PATCH | `/api/usuarios/me` | Atualizar nome e campo escolar do próprio perfil |
-| POST | `/api/auth/logout` | Invalidar sessões da conta |
-| GET | `/api/disciplinas` | Disciplinas do grafo |
-| GET | `/api/questoes?limit=20&offset=0` | Questões do grafo, sem gabarito; limite máximo 100 |
-| GET | `/api/questoes/:id` | Questão pelo ID existente no grafo |
-| POST | `/api/questoes/:id/responder` | Conferência avulsa; não registra atividade. Para salvar, use as rotas de trilhas |
-| POST | `/api/trilhas` | Iniciar diagnóstico/prática com chave idempotente |
-| GET | `/api/trilhas?modo=normal` | Histórico do próprio usuário (30 mais recentes) |
-| GET | `/api/trilhas/atual?modo=normal` | Retomar a trilha em andamento |
-| GET | `/api/trilhas/:id` | Questões, respostas salvas e continuação de uma trilha própria |
-| POST | `/api/trilhas/:id/respostas` | Salvar alternativa e gerar continuação ao concluir |
-| GET | `/api/trilhas/:id/etapas/:etapaId` | Conteúdo liberado, material e estado de leitura/prática |
-| POST | `/api/trilhas/:id/etapas/:etapaId/leitura` | Confirmar leitura do material publicado; corpo `{}` |
-| POST | `/api/trilhas/:id/gerar` | Repetir com segurança a geração de uma atividade concluída |
+| --- | --- | --- |
+| GET | `/health/live` | Verificar se o processo Node está em execução |
+| GET | `/health/ready` | Conferir os bancos e a presença do catálogo oficial |
+| GET | `/api/escolas` | Listar as escolas ativas disponíveis no cadastro |
+| POST | `/api/auth/cadastro` | Criar a conta e retornar sessão ou confirmação pendente |
+| POST | `/api/auth/login` | Entrar usando e-mail e senha |
+| POST | `/api/auth/reenviar-confirmacao` | Solicitar outro código de confirmação |
+| POST | `/api/auth/confirmar-email` | Validar o código de confirmação e abrir a sessão |
+| GET, PATCH | `/api/usuarios/me` | Consultar a própria conta ou atualizar os campos permitidos |
+| POST | `/api/auth/logout` | Invalidar os tokens da conta |
 
-As rotas de dados exigem cookie de sessão ou `Authorization: Bearer <token>`. O Flutter Web envia cookies com credenciais e o cabeçalho `X-Trilha-Client: app`. Alterações com cookie exigem esse cabeçalho; origens fora da lista são bloqueadas. Respostas da API usam Cache-Control: no-store. Não há endpoint de Cypher livre nem listagem pública de usuários. Cadastro e login possuem limite de tentativas. Dados inválidos retornam 400; autenticação inválida, 401; e-mail repetido, 409.
+O cadastro recebe `nome`, `email`, `senha`, `perfil` (`student` ou `teacher`), `dataNascimento` e `termosAceitos`. Para aluno, envie `anoEscolar` com o texto da opção escolhida no app. O cadastro educacional acrescenta `cadastroEducacional` e `codigoEscola`. O aluno pode informar `codigoTurma`, e o professor envia `codProfessor`. Se houver código de turma, conta e matrícula são gravadas na mesma transação. [Fluxo de autenticação](../AUTENTICACAO.md)
 
-Cadastro de estudante:
+### Questões e trilhas
 
-```json
-{
-  "nome": "Estudante Teste",
-  "email": "estudante@example.com",
-  "senha": "EscolhaUmaSenhaDeTeste123!",
-  "perfil": "student",
-  "anoEscolar": "3º ano do Ensino Médio",
-  "termosAceitos": true
-}
-```
+| Método | Rota | Uso |
+| --- | --- | --- |
+| GET | `/api/disciplinas` | Listar disciplinas do catálogo |
+| GET | `/api/questoes?limit=20&offset=0` | Listar questões sem gabarito, com limite máximo de 100 por página |
+| GET | `/api/questoes/:id` | Abrir uma questão pelo ID |
+| POST | `/api/questoes/:id/responder` | Conferir uma alternativa sem gravar a tentativa |
+| POST | `/api/trilhas` | Começar diagnóstico ou prática |
+| GET | `/api/trilhas` | Consultar as 30 trilhas mais recentes da conta |
+| GET | `/api/trilhas/atual` | Retomar a trilha em andamento |
+| GET | `/api/trilhas/:id` | Consultar a trilha e as respostas salvas |
+| POST | `/api/trilhas/:id/respostas` | Registrar uma resposta e gerar a continuação ao concluir |
+| GET | `/api/trilhas/:id/etapas/:etapaId` | Consultar teoria, prática e estado da etapa |
+| POST | `/api/trilhas/:id/etapas/:etapaId/leitura` | Registrar a leitura do material publicado |
+| POST | `/api/trilhas/:id/gerar` | Retomar a geração da continuação de uma atividade concluída |
 
-Login: `email`, `senha`, `perfil` (`student` ou `teacher`). Neste ambiente local, o cadastro de professor está habilitado para testes. Em novas instalações ele fica desativado por padrão; `ALLOW_TEACHER_REGISTRATION=true` permite experimentá-lo no protótipo. Isso não equivale à verificação de vínculo escolar e não deve ser habilitado em um serviço público sem esse fluxo.
+Para iniciar uma trilha, envie `tipo` (`diagnostico` ou `pratica`) e uma `chave` de 16 a 100 caracteres. Reutilize a chave se precisar repetir o mesmo pedido. A prática aceita `disciplina` para limitar a seleção ao assunto escolhido. Para gravar uma resposta, envie `questaoId` e `alternativa` pelo endpoint da trilha.
 
-O cadastro também aceita `cadastroEducacional` (booleano) e `codigoEscola`. Quando o indicador é `true`, é necessário escolher uma escola. Para professores, o indicador nunca pode ser `false`. O frontend oferece a escola fictícia `ESCOLA-DEMO-001` como demonstração. A escolha é persistida no campo `usuarios.codigoEscola`; o indicador retornado pela API é derivado desse campo ou do perfil de professor. Não há validação institucional ou novas permissões associadas à escolha. Contas anteriores continuam compatíveis.
+Após um erro, o gerador dá prioridade a conteúdos relacionados e procura questões mais fáceis para começar a revisão. Com todos os acertos, ele procura outros conteúdos e varia as disciplinas. As questões oficiais são abertas na página do caderno indicado pelo catálogo.
 
-Para criar o documento fictício correspondente no Atlas, sem substituir dados existentes:
+### Turmas, atividade e notificações
 
-```sh
-node --env-file=.env scripts/seed-school.js
-```
+| Método | Rota | Uso |
+| --- | --- | --- |
+| GET, POST | `/api/aluno/turma` | Consultar a turma ou entrar com o código de matrícula |
+| DELETE | `/api/aluno/turma/:id` | Sair da turma |
+| GET | `/api/aluno/atividade` | Consultar XP, medalhas, sequência e desempenho |
+| GET | `/api/aluno/notificacoes` | Consultar notificações de conquistas |
+| PUT | `/api/aluno/notificacoes/lidas` | Registrar a leitura das notificações |
+| PUT | `/api/professor/disciplina` | Definir a disciplina lecionada |
+| GET, POST | `/api/professor/turmas` | Listar as próprias turmas ou criar uma turma |
+| POST | `/api/professor/turmas/entrar` | Aceitar convite de professor |
+| GET | `/api/professor/turmas/:id` | Consultar quartis da disciplina na turma |
+| GET | `/api/professor/turmas/:id/alunos/:alunoId` | Consultar os resultados do aluno por conteúdo |
+| POST | `/api/professor/turmas/:id/convite` | Gerar convite para outro professor |
+| POST | `/api/professor/turmas/:id/codigo` | Renovar o código de matrícula |
 
-O documento fica na coleção `escolas`, com nome **Escola Horizonte — Demonstração** e `demonstracao: true`. As opções do seletor ainda são definidas no frontend, sem um serviço de cadastro de instituições.
+As rotas privadas usam o token e conferem a conta ou o perfil nas operações que exigem acesso. Os relatórios do professor consideram as respostas corrigidas na disciplina dele desde a matrícula do aluno.
 
-Resposta de questão: `{"alternativa":"A"}`. Se o grafo não tiver gabarito válido, a API retorna `corrigida:false`; não inventa gabaritos. A conferência avulsa é mantida por compatibilidade. O aplicativo usa `/api/trilhas/:id/respostas`, com `questaoId` e `alternativa`, para persistir cada resposta antes de exibir o resultado. O painel geral de XP ainda não é calculado. As imagens referenciadas por caminhos locais no grafo ainda precisam de hospedagem própria.
+## Verificação e manutenção
 
-## Testes e verificação
+Rode os comandos na pasta `backend/`.
 
-```sh
-npm test
-npm run db:check
-npm run db:inventory
-```
+| Comando | O que verifica |
+| --- | --- |
+| `npm test` | Regras do backend, rotas TCP e campos enviados ao validador |
+| `npm run db:check` | Conexão com os bancos e presença do catálogo |
+| `npm run db:inventory` | Estrutura dos bancos configurados |
+| `npm run db:audit` | Catálogo, relações, materiais e referências gravadas |
 
-Os testes automatizados usam repositórios simulados; `db:check` e `db:inventory` consultam os serviços reais. O primeiro verifica conectividade e o segundo lista rótulos, relacionamentos, restrições e índices.
-
-## Backup e migração
-
-`backups/projeto-integrador/neo4j.dump` contém a cópia do banco local e fica fora do Git. O manifesto `migracao.json` registra origem, destino, checksum SHA-256 e resultado do envio oficial. Guarde uma cópia em local seguro. O banco do Desktop não é removido.
-
-`scripts/migrate-aura.js` exige destino Aura vazio e usa `neo4j-admin database upload`. Ele recusa importar se encontrar nós no destino. Para reutilizá-lo, configure `NEO4J_ADMIN_PATH`, `JAVA_HOME` e as credenciais no `.env`. A senha é passada por variável de ambiente, sem aparecer na linha de comando.
-
-Neste ambiente de testes, o usuário solicitou e confirmou em 28/10/2026 a regra `0.0.0.0/0` no Atlas. Mudanças do IP público não exigem atualizar a lista enquanto essa regra estiver ativa. Autenticação e TLS continuam obrigatórios.
-
-## Trilhas adaptativas
-
-O início recebe `{"tipo":"diagnostico","modo":"normal","chave":"uma-chave-exclusiva-de-pelo-menos-16-caracteres"}`. A chave deve ser reaproveitada ao reenviar a mesma criação. Diagnóstico tem três questões e prática tem até seis, sempre com gabarito válido. `modo: "exemplo"` disponibiliza o roteiro de teste e separa o histórico de exemplos.
-
-Ao concluir uma atividade, a API cria uma única continuação de até seis conteúdos, com até três questões corrigíveis por conteúdo. O conteúdo da dificuldade vem primeiro. Os demais conteúdos são escolhidos a partir das questões relacionadas: Após erros, alterna os candidatos de cada questão errada e pontua relações do grafo: PARECIDA_COM (100), MAIS_FACIL_QUE na direção da questão mais fácil (90), MESMO_RACIOCINIO (80), MESMO_TEMA (60) e MESMO_TEXTO_BASE (40). Conteúdo compartilhado soma 35. Questões complementares são sorteadas quando faltam candidatos relacionados e ficam identificadas como complementares.
-
-Com todos os acertos, sorteia conteúdos a partir de questões com rotação entre disciplinas e preferência por assuntos distintos. Evita repetir as questões da atividade de origem e não duplica IDs dentro da trilha. O Neo4j é consultado exclusivamente em transações de leitura; não há comandos de escrita no grafo.
-
-As respostas são imutáveis após a primeira confirmação, corrigidas no servidor e salvas atomicamente no documento da trilha com controle de versão. Reenvios com a mesma alternativa devolvem o resultado já salvo; outra alternativa retorna 409. Um índice único de origem impede duas continuações para a mesma atividade. Se a geração falhar após salvar a última resposta, `/gerar` permite concluir sem perder os dados. As consultas de trilhas sempre filtram pelo usuário autenticado.
-
-O ano escolar usa opções fechadas do 6º ano ao 3º ano do Ensino Médio, mais Outro. Os formatos antigos de ano são normalizados pela API.
-
-Veja `../TESTAR_TRILHAS.md` para o roteiro B/C/D versus A/C/D. `node --env-file=.env scripts/verify-trails-live.js` verifica os cenários nos bancos reais e salva o relatório em `.local/VERIFICACAO_TRILHAS.json`.
-
-### Material e desbloqueio de conteúdos
-
-`etapas` na resposta da API agrupa os itens por disciplina e conteúdo. Os estados são `disponivel`, `bloqueada` e `concluida`. Somente o primeiro conteúdo incompleto pode ser iniciado. Materiais publicados exigem confirmação de leitura antes da prática. Todas as questões da etapa precisam ser respondidas para liberar a seguinte, independentemente de acertar ou errar. A API valida esses bloqueios, além da interface. Trilhas antigas são agrupadas preservando as respostas.
-
-Os materiais ficam em `materiais_conteudo`, com `_id = contentId(disciplina, nome)` (função exportada em `src/trails.js`), `titulo`, `versao` inteira, `publicado: true` e `blocos: [{titulo, texto}]`. Os nomes devem corresponder aos conteúdos do catálogo. A leitura fica em `progresso_conteudos`, identificada por usuário, trilha e conteúdo, com a versão lida. Ao atualizar um material, incremente a versão.
-
-`node --env-file=.env scripts/seed-content-materials.js` insere três materiais de Física para o exemplo sem sobrescrever os já existentes. Conteúdos sem material publicado exibem um espaço em preparação e mantêm a prática disponível. O Neo4j continua apenas para leitura.
-
-### Autenticação no navegador
-
-Ao iniciar, o aplicativo consulta `/api/usuarios/me`. Sessão ausente ou expirada abre o login; falha de rede oferece nova tentativa. Uma resposta 401 durante o uso remove as telas privadas da navegação. As telas conferem o perfil retornado pela API. Alterar a URL não concede acesso à área do professor, e o servidor impede alterar o próprio perfil ou consultar trilhas de outro usuário. Os dados escolares do professor ainda são demonstrativos e não representam autorização para acessar estudantes reais.
-
-No ambiente publicado, use HTTPS e `COOKIE_SECURE=true`, com frontend e API no mesmo site (preferencialmente a mesma origem com `/api` encaminhado ao backend). Mantenha CORS_ORIGINS explícito. No desenvolvimento, use 127.0.0.1 nos dois serviços; misturar localhost e 127.0.0.1 impede o uso do cookie SameSite. Logout precisa de conectividade: em caso de falha, o app informa e permite tentar novamente. Sair revoga todas as sessões da conta.
-
-`node --env-file=.env scripts/verify-auth-live.js` verifica as duas contas fictícias já existentes, restauração por cookie, perfil, bloqueios, logout e preservação de contas/trilhas. O resultado sem credenciais fica em `.local/VERIFICACAO_AUTENTICACAO.json`.
-
-Verificação de e-mail, recuperação por e-mail e Google continuam pendentes. A recomendação de verificação, sem implementação ou envio, está em `../AUTENTICACAO.md`.
-
-A API inicia mesmo quando a rede está indisponível. Enquanto o MongoDB não conecta e os índices não estão prontos, as rotas `/api` retornam 503 e não aceitam operações. A reconexão inicial é tentada a cada 15 segundos. Uma falha temporária no Neo4j não impede o login pelo MongoDB; `/health/ready` informa o estado dos dois bancos.
-
-Neste computador, a conexão do Atlas usa o formato padrão `mongodb://` com TLS explícito e os três hosts do mesmo cluster. Isso evita a falha `querySrv ECONNREFUSED` apresentada pelo DNS da rede atual. A solução mantém autenticação, replica set e criptografia, conforme [a orientação oficial do Atlas](https://www.mongodb.com/docs/atlas/troubleshoot-connection/). Para recriar a configuração, use Connect → Drivers e desative SRV Connection String; não copie credenciais para a documentação.
-
-Execute os testes reais de autenticação e de trilhas em sequência: o teste de logout revoga as sessões da conta fictícia de professor usada no teste de isolamento das trilhas.
+Os três comandos de banco só consultam dados. Para publicar o catálogo ou configurar um Neo4j local, veja o [guia dos bancos](../CONFIGURACAO_DOS_BANCOS.md).

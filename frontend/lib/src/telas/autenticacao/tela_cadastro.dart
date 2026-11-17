@@ -17,11 +17,44 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final formKey = GlobalKey<FormState>();
   final nameController = TextEditingController();
   final emailController = TextEditingController();
+  final classCodeController = TextEditingController();
+  final birthDateController = TextEditingController();
+  final teacherCodeController = TextEditingController();
   String? schoolCode;
+  Map<String, String> schools = {};
+  bool loadingSchools = false;
+  bool schoolsFailed = false;
   String? schoolYear;
   final passwordController = TextEditingController();
   bool loading = false;
   String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSchools();
+  }
+
+  Future<void> _loadSchools() async {
+    setState(() {
+      loadingSchools = true;
+      schoolsFailed = false;
+    });
+
+    try {
+      final options = await ApiService.instance.schoolOptions();
+      if (!mounted) return;
+
+      setState(() {
+        schools = options;
+        if (!options.containsKey(schoolCode)) schoolCode = null;
+      });
+    } on ApiException {
+      if (mounted) setState(() => schoolsFailed = true);
+    } finally {
+      if (mounted) setState(() => loadingSchools = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -29,6 +62,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       nameController,
       emailController,
       passwordController,
+      classCodeController,
+      birthDateController,
+      teacherCodeController,
     ]) {
       controller.dispose();
     }
@@ -36,25 +72,53 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _register() async {
-    if (!accepted || !formKey.currentState!.validate()) return;
+    if (loading || !accepted || !formKey.currentState!.validate()) return;
+
+    final email = emailController.text.trim();
+    final enrollmentCode = classCodeController.text.trim();
+    final student = role == UserRole.student;
+
     setState(() {
       loading = true;
       error = null;
     });
     try {
-      final user = await ApiService.instance.register(
+      final registration = await ApiService.instance.register(
         name: nameController.text.trim(),
-        email: emailController.text.trim(),
+        email: email,
         password: passwordController.text,
         role: role.name,
-        schoolField: role == UserRole.student ? schoolYear! : '',
+        schoolField: student ? schoolYear! : '',
         educational: isEducational,
         schoolCode: isEducational ? schoolCode : null,
+        birthDate: birthDateController.text.trim(),
+        teacherCode: student ? null : teacherCodeController.text.trim(),
+        classCode: student && isEducational && enrollmentCode.isNotEmpty
+            ? enrollmentCode
+            : null,
       );
       if (!mounted) return;
+
+      if (registration.needsVerification) {
+        final selectedRole = role;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => EmailVerificationScreen(
+              email: email.toLowerCase(),
+              role: selectedRole,
+              emailSent: registration.emailSent,
+              afterSignup: true,
+            ),
+          ),
+          (_) => false,
+        );
+        return;
+      }
+
       Navigator.pushNamedAndRemoveUntil(
         context,
-        user.role == 'student'
+        registration.user!.role == 'student'
             ? DiagnosticIntroScreen.route
             : TeacherShell.route,
         (_) => false,
@@ -138,6 +202,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   const SizedBox(height: 14),
+                  TextFormField(
+                    controller: birthDateController,
+                    enabled: !loading,
+                    keyboardType: TextInputType.datetime,
+                    validator: (value) {
+                      final data = value?.trim() ?? '';
+                      if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(data)) {
+                        return null;
+                      }
+                      return 'Informe a data no formato AAAA-MM-DD.';
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Data de nascimento',
+                      hintText: 'AAAA-MM-DD',
+                      prefixIcon: Icon(Icons.cake_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
                   if (role == UserRole.student)
                     DropdownButtonFormField<String>(
                       key: const Key('school-year-select'),
@@ -172,7 +254,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Cadastro educacional'),
                       subtitle: const Text(
-                        'Vou usar o Trilha com a minha escola.',
+                        'Vou usar o $appName com a minha escola.',
                       ),
                       onChanged: loading
                           ? null
@@ -196,7 +278,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       key: ValueKey('school-select-${role.name}-$educational'),
                       initialValue: schoolCode,
                       isExpanded: true,
-                      items: schoolOptions.entries
+                      items: schools.entries
                           .map(
                             (school) => DropdownMenuItem(
                               value: school.key,
@@ -212,10 +294,56 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           : (value) => setState(() => schoolCode = value),
                       validator: (value) =>
                           value == null ? 'Selecione sua escola.' : null,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Escola',
-                        prefixIcon: Icon(Icons.school_outlined),
-                        helperText: 'Escola de exemplo disponível para testes.',
+                        prefixIcon: const Icon(Icons.school_outlined),
+                        helperText: loadingSchools
+                            ? 'Carregando escolas…'
+                            : schoolsFailed
+                            ? 'Não foi possível carregar as escolas.'
+                            : schools.isEmpty
+                            ? 'Nenhuma escola disponível.'
+                            : null,
+                      ),
+                    ),
+                  ],
+                  if (schoolsFailed)
+                    TextButton(
+                      onPressed: _loadSchools,
+                      child: const Text('Recarregar escolas'),
+                    ),
+                  if (role == UserRole.teacher) ...[
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: teacherCodeController,
+                      enabled: !loading,
+                      keyboardType: TextInputType.number,
+                      validator: (value) =>
+                          RegExp(r'^[0-9]{4}$').hasMatch(value?.trim() ?? '')
+                          ? null
+                          : 'Informe o código de professor com 4 dígitos.',
+                      decoration: const InputDecoration(
+                        labelText: 'Código de professor',
+                        prefixIcon: Icon(Icons.badge_outlined),
+                      ),
+                    ),
+                  ],
+                  if (role == UserRole.student && isEducational) ...[
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      key: const Key('class-code-register'),
+                      controller: classCodeController,
+                      enabled: !loading,
+                      textCapitalization: TextCapitalization.characters,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      validator: (value) => (value?.trim().isEmpty ?? true)
+                          ? null
+                          : validateClassCode(value),
+                      decoration: const InputDecoration(
+                        labelText: 'Código da turma (opcional)',
+                        helperText: 'Use o código fornecido pela sua turma.',
+                        prefixIcon: Icon(Icons.groups_outlined),
                       ),
                     ),
                   ],
@@ -227,6 +355,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     obscureText: true,
                     decoration: InputDecoration(
                       labelText: 'Crie uma senha',
+                      helperText: 'Use 8 caracteres ou mais, com 1 letra, 2 números e 1 símbolo.',
                       prefixIcon: Icon(Icons.lock_outline),
                     ),
                   ),

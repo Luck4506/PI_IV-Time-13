@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+const appName = 'Gabariteii';
+
 abstract final class AppColors {
   static const ink = Color(0xFF17212B);
   static const muted = Color(0xFF667085);

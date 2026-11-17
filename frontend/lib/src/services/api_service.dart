@@ -1,18 +1,27 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
-import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 
-import 'http_client.dart' if (dart.library.js_interop) 'http_client_web.dart';
+import 'tcp_client.dart';
 
 class ApiException implements Exception {
-  const ApiException(this.message, {this.statusCode});
+  const ApiException(this.message, {this.statusCode, this.code});
+
   final String message;
   final int? statusCode;
+  final String? code;
   @override
   String toString() => message;
+}
+
+class RegistrationResult {
+  const RegistrationResult({this.user, this.emailSent = false});
+
+  final AppUser? user;
+  final bool emailSent;
+  bool get needsVerification => user == null;
 }
 
 class AppUser {
@@ -58,16 +67,34 @@ class AppUser {
 }
 
 class ApiService extends ChangeNotifier {
-  ApiService({http.Client? client, String? baseUrl})
-    : _client = client ?? createHttpClient(),
-      baseUrl =
-          baseUrl ??
-          const String.fromEnvironment(
-            'API_BASE_URL',
-            defaultValue: 'http://127.0.0.1:3000',
-          );
+  ApiService({Future<TcpResponse> Function(TcpRequest)? send})
+    : _send =
+          send ??
+          const TcpClient(
+            String.fromEnvironment('API_TCP_HOST', defaultValue: '127.0.0.1'),
+            int.fromEnvironment('API_TCP_PORT', defaultValue: 3002),
+          ).send;
 
   static ApiService instance = ApiService();
+
+  final Future<TcpResponse> Function(TcpRequest) _send;
+  String? _token;
+  int _sessionVersion = 0;
+  AppUser? user;
+
+  static const schoolYears = [
+    '1º ano do Ensino Médio',
+    '2º ano do Ensino Médio',
+    '3º ano do Ensino Médio',
+    'Outro',
+  ];
+
+  static String requestKey() {
+    final random = Random.secure();
+    final bytes = List.generate(24, (_) => random.nextInt(256));
+    return bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+  }
+
   Future<Map<String, dynamic>> getContentStage(
     String trailId,
     String stageId,
@@ -83,42 +110,35 @@ class ApiService extends ChangeNotifier {
     '/api/trilhas/${Uri.encodeComponent(trailId)}/etapas/${Uri.encodeComponent(stageId)}/leitura',
     {},
   );
-  final http.Client _client;
-  final String baseUrl;
-  String? _token;
-  int _sessionVersion = 0;
-  AppUser? user;
-  static const schoolYears = [
-    '6º ano do Ensino Fundamental',
-    '7º ano do Ensino Fundamental',
-    '8º ano do Ensino Fundamental',
-    '9º ano do Ensino Fundamental',
-    '1º ano do Ensino Médio',
-    '2º ano do Ensino Médio',
-    '3º ano do Ensino Médio',
-    'Outro',
-  ];
-
-  static String requestKey() => List.generate(
-    24,
-    (_) => Random.secure().nextInt(256).toRadixString(16).padLeft(2, '0'),
-  ).join();
-
   Future<Map<String, dynamic>> startTrail({
     required bool diagnostic,
-    bool example = false,
     required String key,
+    String? subject,
   }) => request('POST', '/api/trilhas', {
     'tipo': diagnostic ? 'diagnostico' : 'pratica',
-    'modo': example ? 'exemplo' : 'normal',
+    'modo': 'normal',
     'chave': key,
+    'disciplina': ?subject,
   });
-  Future<Map<String, dynamic>> getTrail(String id) =>
-      request('GET', '/api/trilhas/${Uri.encodeComponent(id)}');
-  Future<Map<String, dynamic>> currentTrail(String mode) =>
-      request('GET', '/api/trilhas/atual?modo=$mode');
-  Future<Map<String, dynamic>> trailHistory(String mode) =>
-      request('GET', '/api/trilhas?modo=$mode');
+  Future<Map<String, dynamic>> getTrail(String id) async {
+    final data = await request(
+      'GET',
+      '/api/trilhas/${Uri.encodeComponent(id)}',
+    );
+    final trail = data['trilha'];
+    // Um link antigo pode apontar para uma trilha fora do histórico do app.
+    if (trail is Map && trail['modo'] != null && trail['modo'] != 'normal') {
+      throw const ApiException('Esta trilha está indisponível.');
+    }
+    return data;
+  }
+
+  Future<Map<String, dynamic>> currentTrail() =>
+      request('GET', '/api/trilhas/atual?modo=normal');
+
+  Future<Map<String, dynamic>> trailHistory() =>
+      request('GET', '/api/trilhas?modo=normal');
+
   Future<Map<String, dynamic>> answerTrail(
     String id,
     String questionId,
@@ -130,6 +150,23 @@ class ApiService extends ChangeNotifier {
   Future<Map<String, dynamic>> generateTrail(String id) =>
       request('POST', '/api/trilhas/${Uri.encodeComponent(id)}/gerar', {});
 
+  Future<Map<String, String>> schoolOptions() async {
+    final data = await request('GET', '/api/escolas');
+    final rows = data['escolas'];
+    if (rows is! List) {
+      throw const ApiException('Não foi possível carregar as escolas.');
+    }
+
+    final options = <String, String>{};
+    for (final school in rows.whereType<Map<String, dynamic>>()) {
+      if (school['demonstracao'] == true) continue;
+      final code = school['codigo'];
+      final name = school['nome'];
+      if (code is String && name is String) options[code] = name;
+    }
+    return options;
+  }
+
   Future<Map<String, dynamic>> request(
     String method,
     String path, [
@@ -137,45 +174,37 @@ class ApiService extends ChangeNotifier {
   ]) async {
     final sessionVersion = _sessionVersion;
     try {
-      final request = http.Request(method, Uri.parse('$baseUrl$path'));
-      request.headers['Content-Type'] = 'application/json';
-      request.headers['X-Trilha-Client'] = 'app';
-      if (_token != null) request.headers['Authorization'] = 'Bearer $_token';
-      if (data != null) request.body = jsonEncode(data);
-      final response = await http.Response.fromStream(
-        await _client.send(request).timeout(const Duration(seconds: 20)),
-      ).timeout(const Duration(seconds: 20));
-      if (response.statusCode == 401) {
+      final response = await _send(
+        TcpRequest(method, path, data: data, token: _token),
+      );
+      final body = response.body;
+
+      if (response.status == 401) {
         if (sessionVersion == _sessionVersion) _clearSession();
-        String message = 'Sessão inválida ou expirada. Entre novamente.';
-        try {
-          final body = jsonDecode(response.body);
-          if (body is Map && body['erro'] is String) {
-            message = body['erro'] as String;
-          }
-        } on FormatException {
-          /* A proxy may return a plain-text 401. */
-        }
+        final message = body is Map && body['erro'] is String
+            ? body['erro'] as String
+            : 'Sessão inválida ou expirada. Entre novamente.';
         throw ApiException(message, statusCode: 401);
       }
-      final Object? body = response.body.isEmpty
-          ? <String, dynamic>{}
-          : jsonDecode(response.body);
+
       if (body is! Map<String, dynamic>) throw const FormatException();
       final decoded = body;
-      if (response.statusCode >= 400) {
+      if (response.status >= 400) {
         throw ApiException(
           decoded['erro'] is String
               ? decoded['erro'] as String
               : 'Não foi possível concluir.',
-          statusCode: response.statusCode,
+          statusCode: response.status,
+          code: decoded['codigo'] is String
+              ? decoded['codigo'] as String
+              : null,
         );
       }
 
       return decoded;
     } on TimeoutException {
       throw const ApiException('A conexão demorou. Tente novamente.');
-    } on http.ClientException {
+    } on SocketException {
       throw const ApiException(
         'Não foi possível conectar. Confira sua conexão e tente novamente.',
       );
@@ -198,45 +227,66 @@ class ApiService extends ChangeNotifier {
     );
   }
 
-  Future<AppUser> register({
+  Future<RegistrationResult> register({
     required String name,
     required String email,
     required String password,
     required String role,
     required String schoolField,
+    required String birthDate,
     bool? educational,
     String? schoolCode,
+    String? classCode,
+    String? teacherCode,
   }) async {
-    return _saveSession(
-      await request('POST', '/api/auth/cadastro', {
-        'nome': name,
-        'email': email,
-        'senha': password,
-        'perfil': role,
-        if (role == 'student') 'anoEscolar': schoolField,
-        if (educational != null)
-          'cadastroEducacional': role == 'teacher' || educational,
-        if (schoolCode != null && (role == 'teacher' || educational == true))
-          'codigoEscola': schoolCode,
-        if (schoolCode == null &&
-            role == 'teacher' &&
-            schoolField.trim().isNotEmpty)
-          'codigoEscola': schoolField,
-        'termosAceitos': true,
-      }),
-    );
+    final data = await request('POST', '/api/auth/cadastro', {
+      'nome': name,
+      'email': email,
+      'senha': password,
+      'perfil': role,
+      if (role == 'student') 'anoEscolar': schoolField,
+      if (educational != null)
+        'cadastroEducacional': role == 'teacher' || educational,
+      if (schoolCode != null && (role == 'teacher' || educational == true))
+        'codigoEscola': schoolCode,
+      if (schoolCode == null &&
+          role == 'teacher' &&
+          schoolField.trim().isNotEmpty)
+        'codigoEscola': schoolField,
+      'codigoTurma': ?classCode,
+      'dataNascimento': birthDate,
+      'codProfessor': ?teacherCode,
+      'termosAceitos': true,
+    });
+    if (data['verificacaoPendente'] == true) {
+      return RegistrationResult(emailSent: data['emailEnviado'] == true);
+    }
+    return RegistrationResult(user: _saveSession(data));
+  }
+
+  Future<void> resendConfirmation(String email, String password) async {
+    await request('POST', '/api/auth/reenviar-confirmacao', {
+      'email': email,
+      'senha': password,
+    });
+  }
+
+  Future<void> confirmEmail(String code, String password) async {
+    await request('POST', '/api/auth/confirmar-email', {
+      'codigo': code,
+      'senha': password,
+    });
   }
 
   AppUser _saveSession(Map<String, dynamic> data) {
     final nextUser = _sessionUser(data);
-    if (!kIsWeb &&
-        (data['token'] is! String || (data['token'] as String).isEmpty)) {
+    if (data['token'] is! String || (data['token'] as String).isEmpty) {
       throw const ApiException(
         'O serviço retornou uma sessão inválida. Tente novamente.',
       );
     }
     _sessionVersion++;
-    _token = kIsWeb ? null : data['token'] as String;
+    _token = data['token'] as String;
     user = nextUser;
     notifyListeners();
     return nextUser;
@@ -272,13 +322,23 @@ class ApiService extends ChangeNotifier {
     }
   }
 
+  Future<void> updateProfile({required String name}) async {
+    final version = _sessionVersion;
+    final data = await request('PATCH', '/api/usuarios/me', {'nome': name});
+    if (version != _sessionVersion) return;
+    user = _sessionUser(data);
+    notifyListeners();
+  }
+
   Future<void> logout() async {
+    final version = _sessionVersion;
     try {
       await request('POST', '/api/auth/logout');
     } on ApiException catch (error) {
       if (error.statusCode != 401) rethrow;
     }
-    _clearSession();
+    // Uma resposta atrasada só pode encerrar a sessão que iniciou o pedido.
+    if (version == _sessionVersion) _clearSession();
   }
 
   Future<List<Map<String, dynamic>>> questions({

@@ -1,5 +1,5 @@
 name: trilha
-description: Front-end da plataforma Trilha — Projeto Integrador IV, Time 13.
+description: Front-end da plataforma Gabariteii — Projeto Integrador IV, Time 13.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -9,13 +9,20 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   cupertino_icons: ^1.0.8
-  http: ^1.5.0
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
   flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/gabariteii_logo.png
+    - assets/images/turma_ilustracao.jpg

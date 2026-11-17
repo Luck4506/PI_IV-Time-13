@@ -12,21 +12,21 @@ class StudentShell extends StatefulWidget {
 class _StudentShellState extends State<StudentShell> {
   int index = 0;
 
-  List<Widget> get pages => [
-    StudentHomeScreen(
-      onOpenTrail: () => setState(() => index = 1),
-      onOpenProgress: () => setState(() => index = 2),
-    ),
-    LearningTrailScreen(active: index == 1),
-    const ProgressScreen(),
-    const RewardsScreen(),
-    const StudentProfileScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: index, children: pages),
+      // Ao voltar da trilha, a página consulta o histórico de novo.
+      // Assim o XP e as medalhas já refletem as respostas que acabaram de chegar.
+      body: switch (index) {
+        1 => const LearningTrailScreen(),
+        2 => const ProgressScreen(),
+        3 => const RewardsScreen(),
+        4 => const StudentProfileScreen(),
+        _ => StudentHomeScreen(
+          onOpenTrail: () => setState(() => index = 1),
+          onOpenProgress: () => setState(() => index = 2),
+        ),
+      },
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
         onDestinationSelected: (value) => setState(() => index = value),

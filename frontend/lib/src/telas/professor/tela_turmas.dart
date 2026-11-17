@@ -1,218 +1,165 @@
-part of '../../telas_professor.dart';
+import 'package:flutter/material.dart';
+
+import '../../remote_content.dart';
+import '../../services/api_service.dart';
+import '../../services/classroom_api.dart';
+import '../../widgets.dart';
+import '../../text_form_dialog.dart';
+import 'tela_detalhes_turma.dart';
 
 class ClassesScreen extends StatefulWidget {
-  const ClassesScreen({super.key});
+  const ClassesScreen({super.key, required this.data, required this.refresh});
+
+  final TeacherClasses data;
+  final VoidCallback refresh;
 
   @override
   State<ClassesScreen> createState() => _ClassesScreenState();
 }
 
 class _ClassesScreenState extends State<ClassesScreen> {
-  String query = '';
-  bool matches(String name) => name.toLowerCase().contains(query);
+  final api = ClassroomApi();
+  String search = '';
+
+  Future<void> _classForm({required bool join}) async {
+    final saved = await showTextForm(
+      context,
+      title: join ? 'Entrar em uma turma' : 'Criar turma',
+      field: join ? 'Código do convite' : 'Nome da turma',
+      button: join ? 'Entrar' : 'Criar',
+      submit: join ? api.joinAsTeacher : api.createClass,
+      validate: join ? validateClassCode : validateClassName,
+      codeField: join,
+    );
+
+    if (saved && mounted) widget.refresh();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      bottom: false,
-      child: SingleChildScrollView(
-        child: PageFrame(
-          maxWidth: 840,
-          padding: const EdgeInsets.fromLTRB(20, 22, 20, 36),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final data = widget.data;
+    final visible = data.classes.where(
+      (row) => row.name.toLowerCase().contains(search),
+    );
+
+    return ScrollPage(
+      children: [
+        const SectionHeader(title: 'Minhas turmas'),
+        if (data.subject == null)
+          _SubjectSetup(onSaved: widget.refresh)
+        else ...[
+          Text('Disciplina: ${data.subject}'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              const AppMark(compact: true),
-              const SizedBox(height: 26),
-              SectionHeader(
-                title: 'Minhas turmas',
-                subtitle: '3 turmas · 92 estudantes',
-                action: IconButton.filled(
-                  onPressed: () => showPendingFeature(context),
-                  icon: const Icon(Icons.add_rounded),
-                ),
+              FilledButton.icon(
+                onPressed: () => _classForm(join: false),
+                icon: const Icon(Icons.add),
+                label: const Text('Criar turma'),
               ),
-              const SizedBox(height: 18),
-              TextField(
-                onChanged: (value) =>
-                    setState(() => query = value.trim().toLowerCase()),
-                decoration: InputDecoration(
-                  hintText: 'Buscar turma',
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  suffixIcon: IconButton(
-                    onPressed: () => showPendingFeature(context),
-                    icon: const Icon(Icons.tune_rounded),
-                  ),
-                ),
+              OutlinedButton(
+                onPressed: () => _classForm(join: true),
+                child: const Text('Usar convite de professor'),
               ),
-              const SizedBox(height: 22),
-              if (!ClassInfo.samples.any((item) => matches(item.name)))
-                const Text('Nenhuma turma encontrada.'),
-              if (matches('3º A'))
-                _ClassCard(
-                  name: '3º A',
-                  subject: 'Matemática · Ensino Médio',
-                  students: 31,
-                  active: 26,
-                  average: .68,
-                  alert: '14 precisam de reforço',
-                  color: AppColors.primary,
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    ClassDetailScreen.route,
-                    arguments: ClassInfo.samples[0],
-                  ),
-                ),
-              const SizedBox(height: 14),
-              if (matches('3º B'))
-                _ClassCard(
-                  name: '3º B',
-                  subject: 'Matemática · Ensino Médio',
-                  students: 29,
-                  active: 23,
-                  average: .73,
-                  alert: '5 precisam de reforço',
-                  color: AppColors.mint,
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    ClassDetailScreen.route,
-                    arguments: ClassInfo.samples[1],
-                  ),
-                ),
-              const SizedBox(height: 14),
-              if (matches('2º A'))
-                _ClassCard(
-                  name: '2º A',
-                  subject: 'Matemática · Ensino Médio',
-                  students: 32,
-                  active: 28,
-                  average: .77,
-                  alert: '3 precisam de reforço',
-                  color: AppColors.amber,
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    ClassDetailScreen.route,
-                    arguments: ClassInfo.samples[2],
-                  ),
-                ),
             ],
           ),
-        ),
-      ),
+          TextField(
+            decoration: const InputDecoration(
+              labelText: 'Buscar turma',
+              prefixIcon: Icon(Icons.search),
+            ),
+            onChanged: (value) =>
+                setState(() => search = value.trim().toLowerCase()),
+          ),
+          if (visible.isEmpty)
+            SurfaceCard(
+              child: Text(
+                data.classes.isEmpty
+                    ? 'Crie uma turma ou use um convite de professor.'
+                    : 'Nenhuma turma encontrada.',
+              ),
+            ),
+          for (final classroom in visible)
+            ClassReportLink(classroom: classroom),
+        ],
+      ],
     );
   }
 }
 
-class _ClassCard extends StatelessWidget {
-  const _ClassCard({
-    required this.name,
-    required this.subject,
-    required this.students,
-    required this.active,
-    required this.average,
-    required this.alert,
-    required this.color,
-    required this.onTap,
-  });
-  final String name;
-  final String subject;
-  final int students;
-  final int active;
-  final double average;
-  final String alert;
-  final Color color;
-  final VoidCallback onTap;
+class _SubjectSetup extends StatefulWidget {
+  const _SubjectSetup({required this.onSaved});
+
+  final VoidCallback onSaved;
+
+  @override
+  State<_SubjectSetup> createState() => _SubjectSetupState();
+}
+
+class _SubjectSetupState extends State<_SubjectSetup> {
+  final api = ClassroomApi();
+  String? selected;
+  String? error;
+  bool saving = false;
+
+  Future<void> _save() async {
+    final subject = selected;
+    if (subject == null) return;
+
+    setState(() {
+      saving = true;
+      error = null;
+    });
+    try {
+      await api.chooseSubject(subject);
+      if (mounted) widget.onSaved();
+    } on ApiException catch (failure) {
+      if (mounted) {
+        setState(() {
+          saving = false;
+          error = failure.message;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return SurfaceCard(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Text(
-                  name,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
+      child: RemoteContent<List<String>>(
+        load: api.subjects,
+        builder: (context, subjects, _) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: [
+            const Text(
+              'Escolha a disciplina que você leciona. Esta escolha define os dados que você poderá consultar nas turmas.',
+            ),
+            DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue: selected,
+              decoration: const InputDecoration(labelText: 'Disciplina'),
+              items: [
+                for (final subject in subjects)
+                  DropdownMenuItem(value: subject, child: Text(subject)),
+              ],
+              onChanged: saving
+                  ? null
+                  : (value) => setState(() => selected = value),
+            ),
+            if (error != null)
+              Text(
+                error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
-              const SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(name, style: Theme.of(context).textTheme.titleLarge),
-                    Text(
-                      subject,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: _MiniMetric(value: '$students', label: 'estudantes'),
-              ),
-              Expanded(
-                child: _MiniMetric(value: '$active', label: 'ativos'),
-              ),
-              Expanded(
-                child: _MiniMetric(
-                  value: '${(average * 100).round()}%',
-                  label: 'média',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 15),
-          ProgressBar(value: average, color: color, height: 7),
-          const SizedBox(height: 12),
-          TagChip(
-            label: alert,
-            icon: Icons.priority_high_rounded,
-            color: AppColors.coral,
-            backgroundColor: AppColors.coralSoft,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MiniMetric extends StatelessWidget {
-  const _MiniMetric({required this.value, required this.label});
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          value,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            FilledButton(
+              onPressed: saving || selected == null ? null : _save,
+              child: Text(saving ? 'Salvando…' : 'Definir disciplina'),
+            ),
+          ],
         ),
-        Text(label, style: Theme.of(context).textTheme.bodyMedium),
-      ],
+      ),
     );
   }
 }

@@ -1,41 +1,32 @@
 import 'package:flutter/material.dart';
 
-import 'services/api_service.dart';
-import 'graph_quiz_screen.dart';
 import 'content_stage_screen.dart';
 import 'content_trail_map.dart';
+import 'graph_quiz_screen.dart';
+import 'practice_subject.dart';
+import 'services/api_service.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
 class UserTrailView extends StatefulWidget {
-  const UserTrailView({
-    super.key,
-    this.active = true,
-    this.initialMode = 'normal',
-    this.initialTrailId,
-  });
+  const UserTrailView({super.key, this.active = true, this.initialTrailId});
+
   final bool active;
-  final String initialMode;
   final String? initialTrailId;
+
   @override
   State<UserTrailView> createState() => _UserTrailViewState();
 }
 
 class _UserTrailViewState extends State<UserTrailView> {
-  late String mode = widget.initialMode;
-  late String? selectedTrailId = widget.initialTrailId;
-  Map<String, dynamic>? trail;
-  List<Map<String, dynamic>> history = [];
-  bool loading = false;
-  String? error;
-  int requestVersion = 0;
-  String _label(dynamic type) => switch (type) {
-    'diagnostico' => 'Diagnóstico',
-    'pratica' => 'Prática',
-    'revisao' => 'Reforço',
-    'exploracao' => 'Novos conteúdos',
-    _ => 'Atividade',
-  };
+  late String? _selectedTrailId = widget.initialTrailId;
+  Map<String, dynamic>? _trail;
+  List<Map<String, dynamic>> _history = [];
+  bool _loading = false;
+  bool _generatingNext = false;
+  String? _error;
+  int _loadVersion = 0;
+
   @override
   void initState() {
     super.initState();
@@ -45,55 +36,75 @@ class _UserTrailViewState extends State<UserTrailView> {
   @override
   void didUpdateWidget(covariant UserTrailView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.active && !oldWidget.active) _load();
+
+    final changedTrail = widget.initialTrailId != oldWidget.initialTrailId;
+    if (changedTrail) _selectedTrailId = widget.initialTrailId;
+    if (widget.active && (!oldWidget.active || changedTrail)) _load();
   }
 
   Future<void> _load() async {
-    final version = ++requestVersion;
+    final version = ++_loadVersion;
+    final selectedId = _selectedTrailId;
+    final api = ApiService.instance;
+
     setState(() {
-      loading = true;
-      error = null;
+      _loading = true;
+      _error = null;
     });
+
     try {
-      final data = await Future.wait([
-        selectedTrailId == null
-            ? ApiService.instance.currentTrail(mode)
-            : ApiService.instance.getTrail(selectedTrailId!),
-        ApiService.instance.trailHistory(mode),
+      final [active, history] = await Future.wait([
+        selectedId == null ? api.currentTrail() : api.getTrail(selectedId),
+        api.trailHistory(),
       ]);
-      if (mounted && version == requestVersion) {
-        setState(() {
-          trail = data[0]['trilha'] as Map<String, dynamic>?;
-          history = (data[1]['trilhas'] as List).cast<Map<String, dynamic>>();
-        });
+
+      // Se outra trilha foi escolhida durante a consulta, só ela atualiza a tela.
+      if (!mounted || version != _loadVersion) return;
+
+      final trail = active['trilha'];
+      final rows = history['trilhas'];
+      if ((trail != null && trail is! Map<String, dynamic>) || rows is! List) {
+        throw const ApiException('Não foi possível carregar a trilha.');
       }
-    } on ApiException catch (e) {
-      if (mounted && version == requestVersion) {
-        setState(() => error = e.message);
+
+      setState(() {
+        _trail = trail as Map<String, dynamic>?;
+        _history = rows.whereType<Map<String, dynamic>>().toList();
+      });
+    } on ApiException catch (error) {
+      if (mounted && version == _loadVersion) {
+        setState(() => _error = error.message);
       }
     } finally {
-      if (mounted && version == requestVersion) setState(() => loading = false);
+      if (mounted && version == _loadVersion) {
+        setState(() => _loading = false);
+      }
     }
   }
 
-  Future<void> _diagnostic({String? id, bool example = false}) async {
+  void _selectTrail(String id) {
+    _selectedTrailId = id;
+    _load();
+  }
+
+  Future<void> _openDiagnostic([String? id]) async {
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            GraphQuizScreen(trailId: id, diagnostic: true, example: example),
+        builder: (_) => GraphQuizScreen(trailId: id, diagnostic: true),
       ),
     );
     if (mounted) _load();
   }
 
-  Future<void> _content(Map<String, dynamic> stage) async {
+  Future<void> _openContent(String trailId, Map<String, dynamic> stage) async {
     if (stage['status'] == 'bloqueada') return;
+
     await Navigator.push<void>(
       context,
       MaterialPageRoute(
         builder: (_) => ContentStageScreen(
-          trailId: trail!['id'] as String,
+          trailId: trailId,
           stageId: stage['id'] as String,
         ),
       ),
@@ -101,50 +112,144 @@ class _UserTrailViewState extends State<UserTrailView> {
     if (mounted) _load();
   }
 
-  Future<void> _nextTrail() async {
-    final nextId = trail?['proximaTrilhaId'] as String?;
-    if (nextId != null) {
-      selectedTrailId = nextId;
-      await _load();
+  Future<void> _openNextTrail(Map<String, dynamic> source) async {
+    if (_generatingNext) return;
+
+    final nextId = source['proximaTrilhaId'];
+    if (nextId is String) {
+      _selectTrail(nextId);
       return;
     }
+
+    final version = _loadVersion;
+    setState(() => _generatingNext = true);
+
     try {
       final data = await ApiService.instance.generateTrail(
-        trail!['id'] as String,
+        source['id'] as String,
       );
-      if (!mounted) return;
-      selectedTrailId = (data['proximaTrilha'] as Map)['id'] as String;
-      _load();
-    } on ApiException catch (e) {
-      if (mounted) setState(() => error = e.message);
+      if (!mounted || version != _loadVersion || !widget.active) return;
+
+      final next = data['proximaTrilha'];
+      if (next is! Map<String, dynamic> || next['id'] is! String) {
+        throw const ApiException('Não foi possível abrir a próxima trilha.');
+      }
+      _selectTrail(next['id'] as String);
+    } on ApiException catch (error) {
+      if (!mounted || version != _loadVersion || !widget.active) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) setState(() => _generatingNext = false);
     }
+  }
+
+  Widget _activity() {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+
+    final error = _error;
+    if (error != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            error,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+          TextButton(onPressed: _load, child: const Text('Tentar novamente')),
+        ],
+      );
+    }
+
+    final trail = _trail;
+    if (trail == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 16,
+        children: [
+          const SurfaceCard(
+            child: Text(
+              'Faça um diagnóstico para descobrir quais conteúdos estudar primeiro. '
+              'Depois, leia o material de cada etapa e avance com a prática.',
+            ),
+          ),
+          FilledButton(
+            onPressed: _openDiagnostic,
+            child: const Text('Começar diagnóstico'),
+          ),
+        ],
+      );
+    }
+
+    final id = trail['id'] as String;
+    if (trail['tipo'] == 'diagnostico') {
+      final completed = trail['status'] == 'concluida';
+      return SurfaceCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: [
+            Text(
+              'Seu ponto de partida',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            Text(
+              '${trail['respondidas']} de ${trail['total']} respostas salvas.',
+            ),
+            FilledButton(
+              onPressed: () => _openDiagnostic(id),
+              child: Text(
+                completed ? 'Ver resultado' : 'Continuar diagnóstico',
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return _TrailProgress(
+      trail: trail,
+      onOpen: (stage) => _openContent(id, stage),
+      onNext: () => _openNextTrail(trail),
+      generatingNext: _generatingNext,
+    );
+  }
+
+  Widget _historyRow(Map<String, dynamic> entry) {
+    final id = entry['id'] as String;
+    final diagnostic = entry['tipo'] == 'diagnostico';
+    final kind = switch (entry['tipo']) {
+      'diagnostico' => 'Diagnóstico',
+      'pratica' => 'Prática',
+      'revisao' => 'Reforço',
+      'exploracao' => 'Novos conteúdos',
+      _ => 'Atividade',
+    };
+    final status = entry['status'] == 'concluida'
+        ? 'concluída'
+        : 'em andamento';
+    final progress = diagnostic
+        ? '${entry['respondidas']}/${entry['total']} respostas'
+        : '${entry['etapasConcluidas'] ?? 0}/${entry['totalEtapas'] ?? 0} conteúdos concluídos';
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text('$kind · $status'),
+      subtitle: Text(progress),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () {
+        if (diagnostic) {
+          _openDiagnostic(id);
+        } else {
+          _selectTrail(id);
+        }
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final answers = (trail?['itens'] as List? ?? [])
-        .cast<Map<String, dynamic>>();
-    final stages = (trail?['etapas'] as List? ?? [])
-        .cast<Map<String, dynamic>>()
-        .map(
-          (stage) => <String, dynamic>{
-            ...stage,
-            'erros': answers
-                .where(
-                  (item) =>
-                      (stage['questaoIds'] as List? ?? []).contains(
-                        item['questaoId'],
-                      ) &&
-                      (item['resposta'] as Map?)?['correta'] == false,
-                )
-                .length,
-          },
-        )
-        .toList();
-    final current = stages
-        .where((s) => s['status'] == 'disponivel')
-        .firstOrNull;
-    final done = stages.where((s) => s['status'] == 'concluida').length;
     return SafeArea(
       bottom: false,
       child: RefreshIndicator(
@@ -157,224 +262,34 @@ class _UserTrailViewState extends State<UserTrailView> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 680),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
                       children: [
-                        const AppMark(compact: true),
-                        const Spacer(),
+                        const Expanded(child: AppMark(compact: true)),
                         IconButton(
                           tooltip: 'Atualizar trilha',
-                          onPressed: loading ? null : _load,
+                          onPressed: _loading ? null : _load,
                           icon: const Icon(Icons.refresh),
                         ),
                       ],
                     ),
                     const SizedBox(height: 24),
-                    Text(
-                      'Sua jornada de aprendizagem',
-                      style: Theme.of(context).textTheme.headlineMedium,
+                    const SectionHeader(
+                      title: 'Sua jornada de aprendizagem',
+                      subtitle: 'Um conteúdo por vez: entenda, pratique e avance pelo caminho.',
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Um conteúdo por vez: entenda, pratique e avance pelo caminho.',
-                    ),
-                    const SizedBox(height: 20),
-                    SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(
-                          value: 'normal',
-                          label: Text('Minha trilha'),
-                        ),
-                        ButtonSegment(
-                          value: 'exemplo',
-                          label: Text('Exemplos de teste'),
-                        ),
-                      ],
-                      selected: {mode},
-                      onSelectionChanged: (value) {
-                        setState(() {
-                          mode = value.first;
-                          selectedTrailId = null;
-                          trail = null;
-                          history = [];
-                        });
-                        _load();
-                      },
-                    ),
+                    const SizedBox(height: 12),
+                    PracticeSubjectButton(onStarted: _selectTrail),
                     const SizedBox(height: 24),
-                    if (loading)
-                      const Center(child: CircularProgressIndicator())
-                    else if (error != null) ...[
-                      Text(
-                        error!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: _load,
-                        child: const Text('Tentar novamente'),
-                      ),
-                    ] else if (trail == null) ...[
-                      const SurfaceCard(
-                        child: Text(
-                          'Faça um diagnóstico para descobrir quais conteúdos estudar primeiro. Cada etapa terá material teórico e uma prática para concluir.',
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      FilledButton(
-                        onPressed: () =>
-                            _diagnostic(example: mode == 'exemplo'),
-                        child: const Text('Começar diagnóstico'),
-                      ),
-                    ] else if (trail!['tipo'] == 'diagnostico') ...[
-                      SurfaceCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Seu ponto de partida',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '${trail!['respondidas']} de ${trail!['total']} respostas salvas.',
-                            ),
-                            const SizedBox(height: 16),
-                            FilledButton(
-                              onPressed: () =>
-                                  _diagnostic(id: trail!['id'] as String),
-                              child: const Text('Continuar diagnóstico'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ] else ...[
-                      SurfaceCard(
-                        color: const Color(0xFFEFF3FF),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              trail!['tipo'] == 'revisao'
-                                  ? 'Fortaleça sua base'
-                                  : 'Explore novos conteúdos',
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text('$done de ${stages.length} etapas concluídas'),
-                            const SizedBox(height: 12),
-                            Semantics(
-                              container: true,
-                              child: LinearProgressIndicator(
-                                semanticsLabel: 'Progresso da trilha',
-                                value: stages.isEmpty
-                                    ? 0
-                                    : done / stages.length,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            if (current != null) ...[
-                              Text(
-                                current['nome'] as String,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              FilledButton.icon(
-                                onPressed: () => _content(current),
-                                icon: const Icon(Icons.auto_stories_rounded),
-                                label: const Text('Abrir conteúdo'),
-                              ),
-                            ] else if (trail!['status'] == 'concluida')
-                              FilledButton(
-                                onPressed: _nextTrail,
-                                child: const Text('Ver próxima trilha'),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 22),
-                      const Wrap(
-                        spacing: 16,
-                        runSpacing: 8,
-                        children: [
-                          _Legend(
-                            icon: Icons.auto_stories_rounded,
-                            label: 'Disponível',
-                            color: AppColors.primary,
-                          ),
-                          _Legend(
-                            icon: Icons.check_circle_rounded,
-                            label: 'Concluído',
-                            color: AppColors.mint,
-                          ),
-                          _Legend(
-                            icon: Icons.replay_rounded,
-                            label: 'Revisar',
-                            color: Color(0xFFB54708),
-                          ),
-                          _Legend(
-                            icon: Icons.lock_rounded,
-                            label: 'Bloqueado',
-                            color: AppColors.muted,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      ContentTrailMap(stages: stages, onOpen: _content),
-                    ],
-                    const SizedBox(height: 20),
-                    OutlinedButton.icon(
-                      key: const Key('example-diagnostic-button'),
-                      onPressed: loading
-                          ? null
-                          : () => _diagnostic(example: true),
-                      icon: const Icon(Icons.science_outlined),
-                      label: const Text('Novo diagnóstico de exemplo'),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Teste os acertos e erros para ver seu caminho de conteúdos. Seu progresso fica salvo.',
-                    ),
-                    if (history.isNotEmpty) ...[
+                    _activity(),
+                    if (_history.isNotEmpty) ...[
                       const SizedBox(height: 28),
-                      const Text(
+                      Text(
                         'Histórico salvo',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                        ),
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                      for (final entry in history)
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            '${_label(entry['tipo'])} · ${entry['status'] == 'concluida' ? 'concluída' : 'em andamento'}',
-                          ),
-                          subtitle: Text(
-                            entry['tipo'] == 'diagnostico'
-                                ? '${entry['respondidas']}/${entry['total']} respostas'
-                                : '${entry['etapasConcluidas'] ?? 0}/${entry['totalEtapas'] ?? 0} conteúdos concluídos',
-                          ),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () {
-                            if (entry['tipo'] == 'diagnostico') {
-                              _diagnostic(id: entry['id'] as String);
-                            } else {
-                              selectedTrailId = entry['id'] as String;
-                              _load();
-                            }
-                          },
-                        ),
+                      for (final entry in _history) _historyRow(entry),
                     ],
                   ],
                 ),
@@ -387,18 +302,155 @@ class _UserTrailViewState extends State<UserTrailView> {
   }
 }
 
+class _TrailProgress extends StatelessWidget {
+  const _TrailProgress({
+    required this.trail,
+    required this.onOpen,
+    required this.onNext,
+    required this.generatingNext,
+  });
+
+  final Map<String, dynamic> trail;
+  final ValueChanged<Map<String, dynamic>> onOpen;
+  final VoidCallback onNext;
+  final bool generatingNext;
+
+  List<Map<String, dynamic>> _stages() {
+    final items = (trail['itens'] as List? ?? [])
+        .whereType<Map<String, dynamic>>();
+    final missed = <Object?>{};
+    for (final item in items) {
+      final answer = item['resposta'];
+      if (answer is Map && answer['correta'] == false) {
+        missed.add(item['questaoId']);
+      }
+    }
+
+    // A indicação de revisão vem das respostas realmente salvas na etapa.
+    final stages = (trail['etapas'] as List? ?? [])
+        .whereType<Map<String, dynamic>>();
+    return [
+      for (final stage in stages)
+        {
+          ...stage,
+          'erros': (stage['questaoIds'] as List? ?? [])
+              .where(missed.contains)
+              .length,
+        },
+    ];
+  }
+
+  String _title(List<Map<String, dynamic>> stages) {
+    if (trail['tipo'] == 'revisao') return 'Fortaleça sua base';
+    if (trail['tipo'] != 'pratica') return 'Explore novos conteúdos';
+
+    final subjects = stages
+        .map((stage) => stage['disciplina'])
+        .whereType<String>()
+        .toSet();
+    if (subjects.length == 1) return 'Prática de ${subjects.single}';
+    return 'Prática por conteúdo';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stages = _stages();
+    final current = stages
+        .where((stage) => stage['status'] == 'disponivel')
+        .firstOrNull;
+    final done = stages.where((stage) => stage['status'] == 'concluida').length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 16,
+      children: [
+        SurfaceCard(
+          color: const Color(0xFFEFF3FF),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 12,
+            children: [
+              Text(
+                _title(stages),
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              Text('$done de ${stages.length} etapas concluídas'),
+              LinearProgressIndicator(
+                semanticsLabel: 'Progresso da trilha',
+                value: stages.isEmpty ? 0 : done / stages.length,
+              ),
+              if (current != null) ...[
+                Text(
+                  current['nome'] as String,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                FilledButton.icon(
+                  onPressed: () => onOpen(current),
+                  icon: const Icon(Icons.auto_stories_rounded),
+                  label: const Text('Abrir conteúdo'),
+                ),
+              ] else if (trail['status'] == 'concluida')
+                FilledButton(
+                  onPressed: generatingNext ? null : onNext,
+                  child: Text(
+                    generatingNext
+                        ? 'Preparando próxima trilha…'
+                        : 'Ver próxima trilha',
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (stages.isNotEmpty) ...[
+          const Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            children: [
+              _Legend(
+                icon: Icons.auto_stories_rounded,
+                label: 'Disponível',
+                color: AppColors.primary,
+              ),
+              _Legend(
+                icon: Icons.check_circle_rounded,
+                label: 'Concluído',
+                color: AppColors.mint,
+              ),
+              _Legend(
+                icon: Icons.replay_rounded,
+                label: 'Revisar',
+                color: Color(0xFFB54708),
+              ),
+              _Legend(
+                icon: Icons.lock_rounded,
+                label: 'Bloqueado',
+                color: AppColors.muted,
+              ),
+            ],
+          ),
+          ContentTrailMap(stages: stages, onOpen: onOpen),
+        ],
+      ],
+    );
+  }
+}
+
 class _Legend extends StatelessWidget {
   const _Legend({required this.icon, required this.label, required this.color});
+
   final IconData icon;
   final String label;
   final Color color;
+
   @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(icon, color: color, size: 16),
-      const SizedBox(width: 5),
-      Text(label, style: const TextStyle(fontSize: 12)),
-    ],
-  );
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 5,
+      children: [
+        Icon(icon, color: color, size: 16),
+        Text(label, style: const TextStyle(fontSize: 12)),
+      ],
+    );
+  }
 }

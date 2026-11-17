@@ -1,61 +1,45 @@
-# Bancos configurados — 27/10/2026
+# Bancos e catálogo
 
-## Testar agora
+As credenciais ficam em `backend/.env`. Use o arquivo privado da equipe ou preencha o [modelo de ambiente](backend/.env.example). Para consultar os bancos diretamente, use a URI configurada no MongoDB Compass ou no Neo4j Browser. A administração dos serviços usa as contas e permissões dos painéis do Atlas e do Aura.
 
-- Aplicativo: http://127.0.0.1:5173
-- Estado dos bancos pela API: http://127.0.0.1:3000/health/ready
-- Contas fictícias de estudante e professor: `.local/ACESSOS_DE_TESTE.md`.
-- Para criar outro usuário de teste, use **Ainda não tenho uma conta** no aplicativo. O cadastro de estudante e professor está habilitado neste ambiente local; o código escolar é informativo e ainda não verifica vínculo institucional.
+| Serviço | O que armazena |
+| --- | --- |
+| MongoDB Atlas | Usuários, confirmação de e-mail, escolas, turmas, matrículas, trilhas, respostas, materiais, leituras e notificações |
+| Neo4j Aura | Disciplinas, conteúdos, questões, gabaritos e relações entre questões |
 
-O app e a API estão executando neste Mac. Mantenha-os abertos durante os testes. Os bancos ficam nos serviços de nuvem e os planos gratuitos podem pausar por inatividade. Para reiniciar os serviços locais, abra `Iniciar Trilha.command`.
+Em um MongoDB novo, a API prepara os índices ao iniciar. Para disponibilizar uma escola no cadastro educacional, registre na coleção `escolas` um documento com o código da escola em `_id` (texto), o `nome` e `ativa: true`.
 
-## MongoDB Atlas
+## Conferir as conexões
 
-- Projeto: `Trilha-PI-IV`.
-- Cluster: `Cluster`, plano Free / M0, AWS São Paulo.
-- Banco: `trilha`; coleções: `usuarios`, `trilhas`, `materiais_conteudo`, `progresso_conteudos` e `escolas`.
-- Escola fictícia para testes: `escolas`, documento `ESCOLA-DEMO-001`, **Escola Horizonte — Demonstração**. A opção está no seletor do frontend; não representa vínculo institucional verificado.
-- Usuário da aplicação: `trilha_api`, com `readWrite` somente em `trilha`.
-- Acesso de rede liberado para todos os IPv4 (`0.0.0.0/0`), solicitado e confirmado pelo usuário em 28/10/2026 para testes em redes diferentes. Autenticação e TLS permanecem obrigatórios.
-- E-mail único, validação de campos e senha protegida com scrypt.
-- O catálogo de questões permanece no Neo4j; trilhas por conteúdos, materiais, leituras, IDs de questões, respostas e histórico ficam no MongoDB.
+Rode `node scripts/iniciar.mjs --check` na raiz. O comando verifica o MongoDB e o Neo4j e informa quantas questões oficiais encontrou. Caso o Aura esteja pausado, reative a instância pelo painel antes de repetir a checagem.
 
-## Neo4j Aura
+Com a API ligada, a rota TCP `GET /health/ready` retorna status `200` quando os dois bancos respondem e o catálogo oficial está disponível. Dentro de `backend/`:
 
-- Instância: `Trilha-Projeto-Integrador`, AuraDB Free.
-- ID: `4e82e839`.
-- Origem: `Projeto_integrador`, Neo4j Desktop 2026.09.0.
-- Importação integral pelo dump original, usando a ferramenta oficial do Neo4j.
+```sh
+node --env-file=.env --input-type=module -e 'import { consultarApiTcp } from "./src/tcp-client.js"; console.log(await consultarApiTcp("GET", "/health/ready"));'
+```
 
-| Conteúdo conferido no Aura | Quantidade |
-|---|---:|
-| Nós | 93 |
-| Disciplinas | 3 |
-| Conteúdos | 45 |
-| Questões | 45 |
-| Relacionamentos | 134 |
-| Restrições de unicidade | 3 |
+## Usar Neo4j local
 
-As relações preservadas incluem `FAZ_PARTE_DE`, `ABORDA`, `MAIS_FACIL_QUE`, `MESMO_RACIOCINIO`, `MESMO_TEMA`, `PARECIDA_COM` e `MESMO_TEXTO_BASE`.
+O Neo4j local é opcional. Crie `backend/.env.neo4j-local` com `NEO4J_URI` no formato `neo4j://127.0.0.1:7687` e preencha `NEO4J_USERNAME`, `NEO4J_PASSWORD` e `NEO4J_DATABASE`. O MongoDB continua usando `backend/.env`.
 
-O banco original do Desktop foi preservado. O backup está em `backend/backups/projeto-integrador/neo4j.dump`, com checksum SHA-256 `df65f3dfb76a31a88ee561db5bd7f78cc09fc65b63a6715bb4559cd65242074d`. O manifesto do envio e o inventário do Aura estão na mesma pasta, fora do Git.
+Inicie a instância pelo Neo4j Desktop ou Docker, se for o caso. Em uma instalação por terminal, `TRILHA_NEO4J_HOME` pode apontar para a pasta da instalação e `TRILHA_JAVA_HOME` para o Java usado pelo Neo4j.
 
-## Integração e verificação
+```sh
+node scripts/iniciar.mjs --check --neo4j-local
+node scripts/iniciar.mjs --neo4j-local
+```
 
-O backend está em `backend/`. Cadastro, login, leitura do próprio perfil, atualização do próprio cadastro e logout usam o MongoDB. As telas de prática e diagnóstico buscam questões e correção no Neo4j pela API.
+## Publicar o catálogo
 
-O teste real confirmou cadastro persistido, senha protegida, rejeição de e-mail duplicado, autenticação, perfil, logout, consulta das 45 questões e das três disciplinas, acesso dos dois perfis fictícios e coleções do aplicativo no MongoDB. O relatório sem senhas está em `.local/VERIFICACAO.json`.
+O lote versionado reúne questões do ENEM, FUVEST, Unicamp, Unesp e PUC-Campinas. Cada entrada traz a referência ao caderno, a página e o gabarito. O lote pode ser conferido sem conectar aos bancos. Na pasta `backend/`:
 
-No navegador também foram verificados login de estudante, abertura de uma questão do Aura e correção da alternativa pelo servidor.
+```sh
+node scripts/seed-questions.js --dry-run
+```
 
-Os indicadores de progresso, turmas e relatórios permanecem demonstrativos. As tentativas e trilhas agora são salvas, com recomendações por erros e exploração após todos os acertos. O painel geral de XP ainda é demonstrativo. As referências de imagens foram preservadas no grafo, mas os arquivos de mídia ainda não são exibidos no app. Autenticação Google e recuperação de senha continuam pendentes.
+Para publicar em uma instância nova ou depois de atualizar o catálogo, rode `npm run db:seed:questions` em `backend/`. O comando grava as questões e as relações no Neo4j e publica no MongoDB os materiais que ainda não existem. As questões antigas usadas em históricos são preservadas.
 
-As credenciais estão em `backend/.env`, ignorado pelo Git. Use o usuário e o nome de banco informados pelo arquivo de credenciais do Aura; a instância atual utiliza seu ID nesses campos. Não coloque credenciais dos bancos no Flutter.
+Para publicar no grafo local, use `node --env-file=.env --env-file=.env.neo4j-local scripts/seed-questions.js` a partir de `backend/`. Depois, confira o catálogo e as referências com `npm run db:audit` para o ambiente padrão ou com `node --env-file=.env --env-file=.env.neo4j-local scripts/audit-data.js` para o ambiente local.
 
-Para os comandos e contratos da API, consulte `backend/README.md`.
-
-A geração adaptativa e o seletor de ano escolar estão documentados em `TESTAR_TRILHAS.md`. O relatório atual é `.local/VERIFICACAO_TRILHAS.json`.
-
-A trilha agora exibe um caminho por conteúdos. A etapa seguinte exige concluir a prática anterior; materiais publicados exigem leitura antes da prática. Há três materiais de Física para demonstração. Veja `TESTAR_TRILHAS.md` para testar e `backend/README.md` para cadastrar novos materiais.
-
-A autenticação Web mantém a sessão por até 12 horas e restaura a mesma conta ao recarregar. O logout revoga as sessões da conta. Rotas privadas e perfis são conferidos. Veja `AUTENTICACAO.md` para testar e para a recomendação de verificação de e-mail, ainda não implementada.
+Backups e credenciais continuam fora do Git. A migração do banco e a publicação do catálogo são operações de manutenção. Para usar um ambiente compartilhado já configurado, basta conferir a conexão.

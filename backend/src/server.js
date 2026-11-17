@@ -1,18 +1,36 @@
 import { readConfig } from './config.js';
 import { createDatabases, initializeMongo } from './databases.js';
 import { createApp } from './app.js';
+import { criarServidorTcp } from './tcp-server.js';
 
 let config;
-try { config = readConfig(); }
-catch { console.error('Configuração incompleta. Preencha backend/.env conforme .env.example.'); process.exit(1); }
-const databases = createDatabases(config);
-let ready = false, stopping = false, retry;
+let databases;
 
-// Keep the local API available to explain a connection failure. Data routes
-// remain closed until MongoDB validation and indexes are initialized.
-const server = createApp({ databases, config, databaseReady: () => ready }).listen(config.PORT, config.HOST, () => {
-  console.log(`API Trilha em http://${config.HOST}:${config.PORT}; conectando aos bancos.`);
+try {
+  config = readConfig();
+  databases = createDatabases(config);
+} catch {
+  console.error('Configuração incompleta. Preencha backend/.env conforme .env.example.');
+  process.exit(1);
+}
+
+let ready = false;
+let stopping = false;
+let retry;
+
+// A porta TCP fica disponível enquanto o Node conecta ao MongoDB.
+const atender = createApp({ databases, config, databaseReady: () => ready });
+const servidorTcp = criarServidorTcp(atender);
+
+servidorTcp.on('error', erro => {
+  console.error(`Não foi possível abrir a API TCP em ${config.TCP_HOST}:${config.TCP_PORT} (${erro.code}).`);
+  process.exit(1);
 });
+
+servidorTcp.listen(config.TCP_PORT, config.TCP_HOST, () => {
+  console.log(`API TCP do Gabariteii em ${config.TCP_HOST}:${config.TCP_PORT}; conectando aos bancos.`);
+});
+
 async function connectMongo() {
   try {
     await databases.mongo.connect();
@@ -22,16 +40,26 @@ async function connectMongo() {
   } catch (error) {
     ready = false;
     console.error('Conexão indisponível:', error.name, error.code ?? 'verifique_acesso', '— nova tentativa em 15 segundos.');
-    if (!stopping) retry = setTimeout(connectMongo, 15000);
+    if (!stopping) retry = setTimeout(connectMongo, 15_000);
   }
 }
+
 connectMongo();
 
-const stop = () => {
+function stop() {
   if (stopping) return;
+
   stopping = true;
   clearTimeout(retry);
-  server.close(async () => { await databases.close(); process.exit(0); });
-  setTimeout(() => process.exit(1), 10000).unref();
-};
-process.on('SIGTERM', stop); process.on('SIGINT', stop);
+
+  // Para de aceitar conexões e deixa os pedidos em andamento terminarem.
+  servidorTcp.close(async () => {
+    await databases.close();
+    process.exit(0);
+  });
+
+  setTimeout(() => process.exit(1), 10_000).unref();
+}
+
+process.on('SIGTERM', stop);
+process.on('SIGINT', stop);

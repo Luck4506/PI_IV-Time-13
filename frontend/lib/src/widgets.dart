@@ -38,27 +38,27 @@ class AppMark extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
+        Image.asset(
+          'assets/images/gabariteii_logo.png',
           width: compact ? 34 : 42,
           height: compact ? 34 : 42,
-          decoration: BoxDecoration(
-            color: inverse ? AppColors.white : AppColors.primary,
-            borderRadius: BorderRadius.circular(compact ? 11 : 14),
-          ),
-          child: Icon(
-            Icons.auto_awesome_rounded,
-            color: inverse ? AppColors.primary : AppColors.white,
-            size: compact ? 19 : 23,
-          ),
+          fit: BoxFit.contain,
+          excludeFromSemantics: true,
         ),
         const SizedBox(width: 10),
-        Text(
-          'trilha',
-          style: TextStyle(
-            color: foreground,
-            fontSize: compact ? 21 : 25,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.8,
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              appName,
+              style: TextStyle(
+                color: foreground,
+                fontSize: compact ? 21 : 25,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.8,
+              ),
+            ),
           ),
         ),
       ],
@@ -322,12 +322,4 @@ class InitialAvatar extends StatelessWidget {
       ),
     );
   }
-}
-
-void showPendingFeature(BuildContext context) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text('Esta funcionalidade estará disponível em breve.'),
-    ),
-  );
 }

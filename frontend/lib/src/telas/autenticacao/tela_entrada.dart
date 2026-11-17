@@ -1,10 +1,17 @@
 part of '../../telas_autenticacao.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, required this.initialRole});
+  const LoginScreen({
+    super.key,
+    required this.initialRole,
+    this.initialEmail = '',
+    this.afterSignup = false,
+  });
 
   static const route = '/login';
   final UserRole initialRole;
+  final String initialEmail;
+  final bool afterSignup;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -14,7 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   late UserRole role = widget.initialRole;
   bool hidePassword = true;
   final formKey = GlobalKey<FormState>();
-  final emailController = TextEditingController();
+  late final emailController = TextEditingController(text: widget.initialEmail);
   final passwordController = TextEditingController();
   bool loading = false;
   String? error;
@@ -41,11 +48,32 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(
         context,
-        user.role == 'student' ? StudentShell.route : TeacherShell.route,
+        user.role == 'teacher'
+            ? TeacherShell.route
+            : widget.afterSignup
+            ? DiagnosticIntroScreen.route
+            : StudentShell.route,
         (_) => false,
       );
     } on ApiException catch (e) {
-      if (mounted) setState(() => error = e.message);
+      if (!mounted) return;
+      if (e.code == 'EMAIL_NAO_CONFIRMADO') {
+        final email = emailController.text.trim().toLowerCase();
+        final selectedRole = role;
+        passwordController.clear();
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => EmailVerificationScreen(
+              email: email,
+              role: selectedRole,
+              afterSignup: widget.afterSignup,
+            ),
+          ),
+        );
+      } else {
+        setState(() => error = e.message);
+      }
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -121,26 +149,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      const Text(
-                        'Senha',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      TextButton(
-                        onPressed: () => showPendingFeature(context),
-                        child: const Text('Esqueci minha senha'),
-                      ),
-                    ],
+                  const Text(
+                    'Senha',
+                    style: TextStyle(fontWeight: FontWeight.w700),
                   ),
+                  const SizedBox(height: 8),
                   TextFormField(
                     controller: passwordController,
                     enabled: !loading,
                     validator: validatePassword,
                     obscureText: hidePassword,
                     decoration: InputDecoration(
+                      hintText: 'Digite sua senha',
                       prefixIcon: const Icon(Icons.lock_outline_rounded),
                       suffixIcon: IconButton(
                         onPressed: () =>
@@ -169,12 +189,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(loading ? 'Entrando…' : 'Entrar'),
                   ),
                   const SizedBox(height: 14),
-                  OutlinedButton.icon(
-                    onPressed: () => showPendingFeature(context),
-                    icon: const Icon(Icons.account_circle_outlined),
-                    label: const Text('Continuar com Google'),
-                  ),
-                  const SizedBox(height: 22),
                   Center(
                     child: TextButton(
                       onPressed: () => Navigator.pushNamed(
