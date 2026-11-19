@@ -5,16 +5,24 @@ const appName = 'Gabariteii';
 abstract final class AppColors {
   static const ink = Color(0xFF17212B);
   static const muted = Color(0xFF667085);
-  static const primary = Color(0xFF315EF5);
-  static const primaryDark = Color(0xFF2446BE);
-  static const mint = Color(0xFF3EC6A5);
-  static const mintSoft = Color(0xFFE8F8F3);
-  static const amber = Color(0xFFF4B942);
+
+  
+  static const primary = Color(0xFF1565FF);
+  static const primaryDark = Color(0xFF0D47C1);
+
+  static const mint = Color(0xFF00CFFF);
+  static const mintSoft = Color(0xFFE3F5FF);
+
+  static const amber = Color(0xFFFFC247);
   static const amberSoft = Color(0xFFFFF5D8);
-  static const coral = Color(0xFFEF765B);
+
+  static const coral = Color(0xFFFF6B6B);
   static const coralSoft = Color(0xFFFFECE7);
-  static const sky = Color(0xFF58A6FF);
-  static const surface = Color(0xFFF6F7FB);
+
+  static const sky = Color(0xFF00B8D9);
+
+
+  static const surface = Color(0xFFFFFFFF);
   static const border = Color(0xFFE4E7EC);
   static const white = Color(0xFFFFFFFF);
 }
