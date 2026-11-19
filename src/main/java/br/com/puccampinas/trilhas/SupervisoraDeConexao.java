@@ -11,6 +11,7 @@ public class SupervisoraDeConexao extends Thread {
     private Socket conexao;
     private ArrayList<Parceiro> usuarios;
     private final ServicoCadastro servicoCadastro;
+    private final ServicoLogin servicoLogin;
 
     public SupervisoraDeConexao(Socket conexao,
                                 ArrayList<Parceiro> usuarios)
@@ -25,6 +26,7 @@ public class SupervisoraDeConexao extends Thread {
         URI enderecoInterpretado = URI.create(enderecoTexto);
         ClienteNode clienteNode = new ClienteNode(enderecoInterpretado);
         this.servicoCadastro = new ServicoCadastro(clienteNode);
+        this.servicoLogin = new ServicoLogin(clienteNode);
 
         this.conexao = conexao;
         this.usuarios = usuarios;
@@ -83,22 +85,25 @@ public class SupervisoraDeConexao extends Thread {
                     try {
                         Comunicado pedidoRecebido = conversor.converterPedido(comunicado);
 
-                        // Login já é reconhecido, mas o encaminhamento ao Node só atende cadastro.
-                        if(!(pedidoRecebido instanceof PedidoDeCadastro)) {
-                            throw new Exception("Encaminhamento deste tipo de pedido ainda nao implementado.");
+                        // Cada pedido segue para sua rota HTTP; o Java aguarda o resultado do Node.
+                        if(pedidoRecebido instanceof PedidoDeCadastro) {
+                            PedidoDeCadastro pedido = (PedidoDeCadastro) pedidoRecebido;
+                            String cadastroJson = conversor.converterCadastroParaNode(pedido);
+                            resultado = servicoCadastro.cadastrar(cadastroJson);
+                        } else if(pedidoRecebido instanceof PedidoDeLogin) {
+                            PedidoDeLogin pedido = (PedidoDeLogin) pedidoRecebido;
+                            String loginJson = conversor.converterLoginParaNode(pedido);
+                            resultado = servicoLogin.entrar(loginJson);
+                        } else {
+                            throw new Exception("Tipo de pedido sem tratamento.");
                         }
-                        PedidoDeCadastro pedido = (PedidoDeCadastro) pedidoRecebido;
-
-                        // Encaminha os valores tratados e aguarda o resultado do Node antes de responder.
-                        String cadastroJson = conversor.converterCadastroParaNode(pedido);
-                        resultado = servicoCadastro.cadastrar(cadastroJson);
                     } catch (InterruptedException erro) {
                         // Preserva o sinal de interrupção e sai do laço, executando o finally externo.
                         Thread.currentThread().interrupt();
                         break;
                     } catch (Exception erro) {
-                        // Por enquanto, este código também cobre operações sem encaminhamento implementado.
-                        resultado = new RespostaOperacao(false, "CADASTRO_INVALIDO", erro.getMessage(), null);
+                        // Recusa mensagens inválidas; falhas de transporte HTTP são tratadas pelos serviços.
+                        resultado = new RespostaOperacao(false, "VALIDACAO_INVALIDA", erro.getMessage(), null);
                     }
 
                     String respostaJson = new ConversorRespostaNode().converterParaJson(resultado);

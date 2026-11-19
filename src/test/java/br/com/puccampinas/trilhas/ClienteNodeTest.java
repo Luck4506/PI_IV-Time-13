@@ -20,7 +20,7 @@ public class ClienteNodeTest {
                               );
 
         // Pedido fictício: este teste verifica HTTP, não as regras de cadastro.
-        String cadastroJson = "{\"nome\": \"Jefferson\"}";
+        String cadastroJson = "{\"token\": \"token-simulado\", \"usuario\": {\"id\": \"usuario-123\"}}";
         // Compartilham o pedido capturado na thread do servidor com a thread do teste.
         AtomicReference<String> metodoRecebido = new AtomicReference<>();
         AtomicReference<String> tipoConteudoRecebido = new AtomicReference<>();
@@ -30,7 +30,7 @@ public class ClienteNodeTest {
             // Registra o que fazer quando uma requisição chegar a esta rota.
             servidor.createContext("/api/auth/cadastro", troca -> {
                 try {
-                    String respostaJson = "{\"mensagem\": \"Cadastro simulado.\"}";
+                    String respostaJson = "{\"token\": \"token-simulado\", \"usuario\": {\"id\": \"usuario-123\"}}";
                     // HTTP transmite bytes; o tamanho informado será o de bytes, não de letras.
                     byte[] respostaBytes = respostaJson.getBytes(StandardCharsets.UTF_8);
 
@@ -60,7 +60,9 @@ public class ClienteNodeTest {
 
             // Confere a resposta recebida pelo cliente.
             assertEquals(201, resposta.statusCode());
-            assertEquals("{\"mensagem\": \"Cadastro simulado.\"}", resposta.body());
+            assertEquals("{\"token\": \"token-simulado\", \"usuario\": {\"id\": \"usuario-123\"}}",
+                    resposta.body()
+            );
             // Confere o pedido que efetivamente chegou ao servidor.
             assertEquals("POST", metodoRecebido.get());
             assertEquals("application/json", tipoConteudoRecebido.get());
@@ -69,7 +71,12 @@ public class ClienteNodeTest {
             assertTrue(operacao.isSucesso());
             assertEquals("CADASTRO_REALIZADO", operacao.getCodigo());
             assertEquals("Cadastro realizado.", operacao.getMensagem());
-            assertEquals("Cadastro simulado.", operacao.getDados().get("mensagem").getAsString());
+            // Confere a sessão preservada nos dados da operação.
+            assertEquals("token-simulado", operacao.getDados().get("token").getAsString());
+            assertEquals(
+                    "usuario-123",
+                    operacao.getDados().getAsJsonObject("usuario").get("id").getAsString()
+            );
 
         } finally {
             // Libera o servidor e sua porta mesmo se o teste falhar.

@@ -35,4 +35,17 @@ public class ClienteNode {
         // Aguarda a resposta e preserva status HTTP e corpo para análise posterior.
         return clienteHttp.send(requisicao, HttpResponse.BodyHandlers.ofString());
     }
+
+    public HttpResponse<String> entrar(String loginJson) throws Exception {
+        if(loginJson == null) throw new Exception("Json de login invalido");
+
+        HttpRequest requisicao = HttpRequest.newBuilder()
+                                 .uri(enderecoBase.resolve("/api/auth/login"))
+                                 .timeout(Duration.ofSeconds(10))
+                                 .header("Content-Type", "application/json")
+                                 .POST(HttpRequest.BodyPublishers.ofString(loginJson))
+                                 .build();
+
+        return clienteHttp.send(requisicao, HttpResponse.BodyHandlers.ofString());
+    }
 }

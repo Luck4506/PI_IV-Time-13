@@ -108,4 +108,204 @@ public class ServicoCadastroTest {
         }
     }
 
+    @Test
+    void retornarIndisponibilidadeQuandoCadastroNaoTiverToken() throws Exception {
+        // Mesmo com HTTP 201, usuário sem token não completa a sessão esperada.
+        HttpServer servidor = HttpServer.create(
+                              new InetSocketAddress("127.0.0.1", 0),
+                              0
+        );
+
+        String cadastroJson = "{\"nome\": \"Jefferson\"}";
+
+        try {
+            servidor.createContext("/api/auth/cadastro", troca -> {
+                try {
+                    String respostaJson = "{\"usuario\": {\"id\": \"usuario-123\"}}";
+                    byte[] respostaBytes = respostaJson.getBytes(StandardCharsets.UTF_8);
+
+                    troca.sendResponseHeaders(201, respostaBytes.length);
+                    troca.getResponseBody().write(respostaBytes);
+                } finally {
+                    troca.close();
+                }
+            });
+
+            servidor.start();
+            int porta = servidor.getAddress().getPort();
+            URI uri = URI.create("http://127.0.0.1:" + porta);
+
+            ServicoCadastro servico = new ServicoCadastro(new ClienteNode(uri));
+            RespostaOperacao operacao = servico.cadastrar(cadastroJson);
+
+            assertFalse(operacao.isSucesso());
+            assertEquals("SERVICO_INDISPONIVEL", operacao.getCodigo());
+            assertEquals("Servico indisponivel. Tente novamente.", operacao.getMensagem());
+            assertNull(operacao.getDados());
+        }
+        finally {
+            servidor.stop(0);
+        }
+    }
+
+    @Test
+    void retornarIndisponibilidadeQuandoTokenDoCadastroForNumerico() throws Exception {
+        // O token deve ser texto; um número não pode ser convertido automaticamente.
+        HttpServer servidor = HttpServer.create(
+                              new InetSocketAddress("127.0.0.1", 0),
+                              0
+        );
+
+        String cadastroJson = "{\"nome\": \"Jefferson\"}";
+
+        try {
+            servidor.createContext("/api/auth/cadastro", troca -> {
+                try {
+                    String respostaJson = "{\"token\": 123, \"usuario\": {\"id\": \"usuario-123\"}}";
+                    byte[] respostaBytes = respostaJson.getBytes(StandardCharsets.UTF_8);
+
+                    troca.sendResponseHeaders(201, respostaBytes.length);
+                    troca.getResponseBody().write(respostaBytes);
+                } finally {
+                    troca.close();
+                }
+            });
+
+            servidor.start();
+            int porta = servidor.getAddress().getPort();
+            URI uri = URI.create("http://127.0.0.1:" + porta);
+
+            ServicoCadastro servico = new ServicoCadastro(new ClienteNode(uri));
+            RespostaOperacao operacao = servico.cadastrar(cadastroJson);
+
+            assertFalse(operacao.isSucesso());
+            assertEquals("SERVICO_INDISPONIVEL", operacao.getCodigo());
+            assertEquals("Servico indisponivel. Tente novamente.", operacao.getMensagem());
+            assertNull(operacao.getDados());
+        }
+        finally {
+            servidor.stop(0);
+        }
+    }
+
+    @Test
+    void retornarIndisponibilidadeQuandoTokenDoCadastroEstiverEmBranco() throws Exception {
+        // Um token com apenas espaços não permite confirmar a sessão do cadastro.
+        HttpServer servidor = HttpServer.create(
+                              new InetSocketAddress("127.0.0.1", 0),
+                              0
+        );
+
+        String cadastroJson = "{\"nome\": \"Jefferson\"}";
+
+        try {
+            servidor.createContext("/api/auth/cadastro", troca -> {
+                try {
+                    String respostaJson = "{\"token\": \"   \", \"usuario\": {\"id\": \"usuario-123\"}}";
+                    byte[] respostaBytes = respostaJson.getBytes(StandardCharsets.UTF_8);
+
+                    troca.sendResponseHeaders(201, respostaBytes.length);
+                    troca.getResponseBody().write(respostaBytes);
+                } finally {
+                    troca.close();
+                }
+            });
+
+            servidor.start();
+            int porta = servidor.getAddress().getPort();
+            URI uri = URI.create("http://127.0.0.1:" + porta);
+
+            ServicoCadastro servico = new ServicoCadastro(new ClienteNode(uri));
+            RespostaOperacao operacao = servico.cadastrar(cadastroJson);
+
+            assertFalse(operacao.isSucesso());
+            assertEquals("SERVICO_INDISPONIVEL", operacao.getCodigo());
+            assertEquals("Servico indisponivel. Tente novamente.", operacao.getMensagem());
+            assertNull(operacao.getDados());
+        }
+        finally {
+            servidor.stop(0);
+        }
+    }
+
+    @Test
+    void retornarIndisponibilidadeQuandoCadastroNaoTiverUsuario() throws Exception {
+        // Token sem o objeto de usuário também é uma resposta incompleta.
+        HttpServer servidor = HttpServer.create(
+                              new InetSocketAddress("127.0.0.1", 0),
+                              0
+        );
+
+        String cadastroJson = "{\"nome\": \"Jefferson\"}";
+
+        try {
+            servidor.createContext("/api/auth/cadastro", troca -> {
+                try {
+                    String respostaJson = "{\"token\": \"token-simulado\"}";
+                    byte[] respostaBytes = respostaJson.getBytes(StandardCharsets.UTF_8);
+
+                    troca.sendResponseHeaders(201, respostaBytes.length);
+                    troca.getResponseBody().write(respostaBytes);
+                } finally {
+                    troca.close();
+                }
+            });
+
+            servidor.start();
+            int porta = servidor.getAddress().getPort();
+            URI uri = URI.create("http://127.0.0.1:" + porta);
+
+            ServicoCadastro servico = new ServicoCadastro(new ClienteNode(uri));
+            RespostaOperacao operacao = servico.cadastrar(cadastroJson);
+
+            assertFalse(operacao.isSucesso());
+            assertEquals("SERVICO_INDISPONIVEL", operacao.getCodigo());
+            assertEquals("Servico indisponivel. Tente novamente.", operacao.getMensagem());
+            assertNull(operacao.getDados());
+        }
+        finally {
+            servidor.stop(0);
+        }
+    }
+
+    @Test
+    void retornarIndisponibilidadeQuandoUsuarioDoCadastroNaoForObjeto() throws Exception {
+        // O campo usuario deve ser um objeto JSON, não um texto com o nome.
+        HttpServer servidor = HttpServer.create(
+                              new InetSocketAddress("127.0.0.1", 0),
+                              0
+        );
+
+        String cadastroJson = "{\"nome\": \"Jefferson\"}";
+
+        try {
+            servidor.createContext("/api/auth/cadastro", troca -> {
+                try {
+                    String respostaJson = "{\"token\": \"token-simulado\", \"usuario\": \"Jefferson\"}";
+                    byte[] respostaBytes = respostaJson.getBytes(StandardCharsets.UTF_8);
+
+                    troca.sendResponseHeaders(201, respostaBytes.length);
+                    troca.getResponseBody().write(respostaBytes);
+                } finally {
+                    troca.close();
+                }
+            });
+
+            servidor.start();
+            int porta = servidor.getAddress().getPort();
+            URI uri = URI.create("http://127.0.0.1:" + porta);
+
+            ServicoCadastro servico = new ServicoCadastro(new ClienteNode(uri));
+            RespostaOperacao operacao = servico.cadastrar(cadastroJson);
+
+            assertFalse(operacao.isSucesso());
+            assertEquals("SERVICO_INDISPONIVEL", operacao.getCodigo());
+            assertEquals("Servico indisponivel. Tente novamente.", operacao.getMensagem());
+            assertNull(operacao.getDados());
+        }
+        finally {
+            servidor.stop(0);
+        }
+    }
+
 }

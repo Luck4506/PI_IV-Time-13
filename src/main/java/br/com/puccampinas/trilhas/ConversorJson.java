@@ -197,4 +197,13 @@ public class ConversorJson {
 
         return new PedidoDeLogin(email, senha);
     }
+
+    // Monta o corpo HTTP com os campos do login já validado, sem o tipo do protocolo TCP.
+    public String converterLoginParaNode(PedidoDeLogin pedido) {
+        JsonObject json = new JsonObject();
+        json.addProperty("email", pedido.getEmail());
+        json.addProperty("senha", pedido.getSenha());
+
+        return json.toString();
+    }
 }
