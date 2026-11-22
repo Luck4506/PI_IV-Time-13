@@ -1,4 +1,18 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import nodemailer from 'nodemailer';
+
+const messages = {
+  confirmation: {
+    subject: 'Confirme seu e-mail no Gabariteii',
+    action: 'Copie o código abaixo e cole na tela de confirmação do Gabariteii.',
+    ignore: 'Se você não fez esse cadastro, ignore esta mensagem.',
+  },
+  recovery: {
+    subject: 'Redefina sua senha do Gabariteii',
+    action: 'Copie o código abaixo e cole na tela Esqueci minha senha do Gabariteii.',
+    ignore: 'Se você não pediu uma nova senha, ignore esta mensagem.',
+  },
+};
 
 export function createEmailMailer(config) {
   if (!config.SMTP_HOST || !config.SMTP_FROM) {
@@ -20,16 +34,13 @@ export function createEmailMailer(config) {
     disableUrlAccess: true,
   });
 
-  return async (to, token) => {
+  return async (to, token, purpose = 'confirmation') => {
+    const { subject, action, ignore } = messages[purpose];
     await transport.sendMail({
       from: { name: 'Gabariteii', address: config.SMTP_FROM },
       to: { name: '', address: to },
-      subject: 'Confirme seu e-mail no Gabariteii',
-      text: [
-        'Copie o código abaixo e cole na tela de confirmação do Gabariteii.',
-        token,
-        'O código vale por 30 minutos. Se você não fez esse cadastro, ignore esta mensagem.',
-      ].join('\n\n'),
+      subject,
+      text: [action, token, `O código vale por 30 minutos. ${ignore}`].join('\n\n'),
     });
   };
 }

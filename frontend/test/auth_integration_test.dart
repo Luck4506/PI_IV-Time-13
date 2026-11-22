@@ -7,6 +7,65 @@ import 'package:trilha/src/services/tcp_client.dart';
 import 'package:trilha/src/graph_quiz_screen.dart';
 
 void main() {
+  testWidgets('recupera a senha por código e volta ao login', (tester) async {
+    Map<String, dynamic>? requestBody;
+    Map<String, dynamic>? resetBody;
+    ApiService.instance = ApiService(
+      send: (request) async {
+        if (request.path == '/api/auth/esqueci-senha') {
+          requestBody = request.data;
+          return TcpResponse(<String, dynamic>{}, 202);
+        }
+        if (request.path == '/api/auth/redefinir-senha') {
+          resetBody = request.data;
+          return TcpResponse(<String, dynamic>{}, 200);
+        }
+        return TcpResponse(<String, dynamic>{}, 401);
+      },
+    );
+
+    await tester.pumpWidget(const TrilhaApp());
+    await tester.pumpAndSettle();
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.first, 'teste@example.com');
+    final forgot = find.text('Esqueci minha senha');
+    await tester.ensureVisible(forgot);
+    await tester.tap(forgot);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Enviar código'));
+    await tester.pumpAndSettle();
+    expect(requestBody, {'email': 'teste@example.com'});
+
+    final code = 'A' * 43;
+    final codeField = find.byKey(const Key('password-recovery-code'));
+    final newPassword = find.byKey(const Key('password-recovery-new-password'));
+    final repeatedPassword = find.byKey(
+      const Key('password-recovery-confirm-password'),
+    );
+    expect(tester.widget<TextFormField>(codeField).controller!.text, isEmpty);
+    await tester.enterText(codeField, code);
+    await tester.enterText(newPassword, 'OutraSenha123!');
+    await tester.enterText(repeatedPassword, 'SenhaDiferente123!');
+    final save = find.text('Salvar nova senha');
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(find.text('As senhas precisam ser iguais.'), findsOneWidget);
+    expect(resetBody, isNull);
+
+    await tester.enterText(repeatedPassword, 'OutraSenha123!');
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(resetBody, {'codigo': code, 'senha': 'OutraSenha123!'});
+    expect(find.byKey(const Key('login-button')), findsOneWidget);
+    expect(
+      find.text('Senha redefinida. Entre com a nova senha.'),
+      findsOneWidget,
+    );
+    expect(ApiService.instance.user, isNull);
+  });
+
   testWidgets('conta pendente pode pedir outro código e confirmar no app', (
     tester,
   ) async {

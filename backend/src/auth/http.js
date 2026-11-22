@@ -12,7 +12,8 @@ export function rotaDeAutenticacao(caminho) {
 
 function respostaParaJava(caminho, { status, corpo }) {
   if (caminho === cadastro && status === 201 && corpo.verificacaoPendente) {
-    const codigo = corpo.emailEnviado ? 'EMAIL_CONFIRMACAO_ENVIADA' : 'EMAIL_CONFIRMACAO_PENDENTE';
+    const codigo = corpo.emailEnviado === null ? 'EMAIL_CONFIRMACAO_EM_ENVIO'
+      : corpo.emailEnviado ? 'EMAIL_CONFIRMACAO_ENVIADA' : 'EMAIL_CONFIRMACAO_PENDENTE';
     return { status: 409, corpo: { erro: `[${codigo}] Confirme seu e-mail para continuar.` } };
   }
 

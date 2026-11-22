@@ -14,6 +14,7 @@ function fixture() {
   const rows = [];
   const graphCalls = [];
   const verificationRows = [];
+  const recoveryRows = [];
   const matches = (row, filter) => Object.entries(filter).every(([key, value]) => {
     if (value?.$exists !== undefined) return (row[key] !== undefined) === value.$exists;
     if (value?.$gt !== undefined) return row[key] > value.$gt;
@@ -57,13 +58,34 @@ function fixture() {
       },
       async updateOne(filter, update) {
         const user = find(filter);
-        if (user) user.tokenVersion += update.$inc.tokenVersion;
+        if (!user) return { modifiedCount: 0 };
+        Object.assign(user, update.$set);
+        user.tokenVersion += update.$inc.tokenVersion;
+        return { modifiedCount: 1 };
       },
     },
     db: {
       async command() { return { ok: 1 }; },
       collection(name) {
         if (name === 'verificacoes_email') return verifications;
+        if (name === 'recuperacoes_senha') {
+          return {
+            async findOne(filter) { return recoveryRows.find(row => matches(row, filter)) ?? null; },
+            async updateOne(filter, update) {
+              const row = recoveryRows.find(item => matches(item, filter));
+              if (row) Object.assign(row, update.$set);
+              else if (recoveryRows.some(item => matches(item, { _id: filter._id }))) {
+                throw Object.assign(new Error(), { code: 11000 });
+              } else {
+                recoveryRows.push({ _id: filter._id, ...update.$set });
+              }
+            },
+            async findOneAndDelete(filter) {
+              const index = recoveryRows.findIndex(row => matches(row, filter));
+              return index < 0 ? null : recoveryRows.splice(index, 1)[0];
+            },
+          };
+        }
         if (name !== 'escolas') return {};
         return {
           find() {
@@ -102,7 +124,7 @@ function fixture() {
       return { records: [] };
     },
   };
-  return { databases, rows, graphCalls, verificationRows };
+  return { databases, rows, graphCalls, verificationRows, recoveryRows };
 }
 async function enviarEmMemoria(atender, partes) {
   const resposta = [];
@@ -423,6 +445,68 @@ test('reenvio após o intervalo substitui o código, inclusive após falha de en
       },
     },
   });
+});
+
+test('recuperação por e-mail expira códigos, consome uma vez e revoga sessões antigas', async t => {
+  const messages = [];
+  let time = Date.now();
+  await withServer(t, async ({ call, recoveryRows, rows }) => {
+    const post = (path, body) => call('/api/auth/' + path, { method: 'POST', body });
+    const session = (await post('cadastro', registration)).data;
+    const originalHash = rows[0].senhaHash;
+    const email = registration.email;
+    const request = address => post('esqueci-senha', { email: address });
+    const reset = (codigo, senha = 'OutraSenha123!') => post('redefinir-senha', { codigo, senha });
+    const background = () => new Promise(resolve => setImmediate(resolve));
+
+    const missing = await request('desconhecido@example.test');
+    const [known, repeated] = await Promise.all([request(email), request(email)]);
+    assert.equal(known.status, 202);
+    assert.deepEqual(known, missing);
+    assert.deepEqual(known, repeated);
+    await background();
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0].purpose, 'recovery');
+    assert.equal(messages[0].email, 'teste@example.com');
+    assert.match(recoveryRows[0].tokenHash, /^[a-f0-9]{64}$/);
+    assert(!JSON.stringify(recoveryRows).includes(messages[0].token));
+    assert.equal(rows[0].senhaHash, originalHash);
+
+    time += 30 * 60_000;
+    assert.equal((await reset(messages[0].token)).status, 400);
+    await request(email);
+    await background();
+    assert.equal(messages.length, 2);
+    const { token } = messages[1];
+    assert.equal((await reset(token, 'semcomposicao')).status, 400);
+    const attempts = await Promise.all([reset(token), reset(token)]);
+    assert.deepEqual(attempts.map(result => result.status).sort(), [200, 400]);
+    assert.equal(recoveryRows.length, 0);
+    assert.equal(rows[0].tokenVersion, 1);
+    assert.notEqual(rows[0].senhaHash, originalHash);
+    assert.equal((await call('/api/usuarios/me', { token: session.token })).status, 401);
+    assert.equal((await post('login', { email, senha: registration.senha })).status, 401);
+    assert.equal((await post('login', { email, senha: 'OutraSenha123!' })).status, 200);
+  }, {}, {
+    emailOptions: { now: () => time, sendMail: async (email, token, purpose) => messages.push({ email, token, purpose }) },
+  });
+});
+
+test('cadastro devolve confirmação em andamento quando o remetente demora', async t => {
+  const sending = Promise.withResolvers();
+  try {
+    await withServer(t, async ({ atender, rows }) => {
+      const port = await portaLocal(t, criarServidorAuthHttp(atender));
+      const response = await fetch(`http://127.0.0.1:${port}/api/auth/cadastro`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(registration),
+      });
+      assert.equal(response.status, 409);
+      assert.match((await response.json()).erro, /^\[EMAIL_CONFIRMACAO_EM_ENVIO\]/);
+      assert.equal(rows.length, 1);
+    }, { EMAIL_VERIFICATION_REQUIRED: 'true' }, { emailOptions: { sendMail: () => sending.promise } });
+  } finally {
+    sending.resolve();
+  }
 });
 
 test('TCP reúne partes do JSON UTF-8 e recusa pedidos inválidos', async () => {

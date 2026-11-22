@@ -8,9 +8,19 @@ Quando a confirmação está ativa, o cadastro envia um código por e-mail. No a
 
 As contas existentes de antes da ativação continuam acessíveis. No MongoDB, a coleção `verificacoes_email` guarda o estado da confirmação e o hash do código.
 
+Se o envio demorar, o cadastro informa que a confirmação continua pendente. O aluno pode pedir um novo código na tela de confirmação. O Java continua recebendo apenas os pedidos de cadastro e login.
+
+## Esqueci minha senha
+
+Na tela de entrada, toque em **Esqueci minha senha** e informe o e-mail da conta. Se o endereço estiver cadastrado, o Node envia um código válido por 30 minutos. Cole o código na tela e escolha uma nova senha. O código vale uma vez, e a troca revoga as sessões anteriores. Depois disso, entre com a senha nova pela tela de login.
+
+Os códigos de recuperação ficam na coleção `recuperacoes_senha`, com hash e expiração. Confirmação e recuperação usam códigos distintos. As duas rotas de recuperação usam a conexão TCP do Flutter com o Node.
+
 ## Configurar o remetente
 
 Preencha `EMAIL_VERIFICATION_REQUIRED=true`, `SMTP_HOST`, `SMTP_PORT` e `SMTP_FROM` no arquivo `backend/.env`. Use um remetente autorizado pelo provedor. Se o provedor exigir autenticação, preencha também `SMTP_USER` e `SMTP_PASSWORD`. Reinicie a API para aplicar a configuração. [Modelo público do ambiente](backend/.env.example)
+
+Para o Gmail dedicado, use `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=465` e o endereço da conta em `SMTP_USER` e `SMTP_FROM`. Ative a verificação em duas etapas na conta Google e use uma senha de app como `SMTP_PASSWORD`. Mantenha a credencial apenas no arquivo privado de configuração do Node.
 
 Sem remetente, a API informa a indisponibilidade antes de criar a conta. Se o envio falhar depois de gravar a conta, ela fica pendente e a tela oferece o reenvio. Em desenvolvimento local, `EMAIL_VERIFICATION_REQUIRED=false` permite novos cadastros sem envio. Com `NODE_ENV=production`, a confirmação é obrigatória.
 

@@ -19,10 +19,10 @@ class ApiException implements Exception {
 }
 
 class RegistrationResult {
-  const RegistrationResult({this.user, this.emailSent = false});
+  const RegistrationResult({this.user, this.emailSent});
 
   final AppUser? user;
-  final bool emailSent;
+  final bool? emailSent;
   bool get needsVerification => user == null;
 }
 
@@ -278,7 +278,8 @@ class ApiService extends ChangeNotifier {
       'termosAceitos': true,
     });
     if (data['verificacaoPendente'] == true) {
-      return RegistrationResult(emailSent: data['emailEnviado'] == true);
+      final sent = data['emailEnviado'];
+      return RegistrationResult(emailSent: sent is bool ? sent : null);
     }
     return RegistrationResult(user: _saveSession(data, expectedRole: role));
   }
@@ -292,6 +293,17 @@ class ApiService extends ChangeNotifier {
 
   Future<void> confirmEmail(String code, String password) async {
     await request('POST', '/api/auth/confirmar-email', {
+      'codigo': code,
+      'senha': password,
+    });
+  }
+
+  Future<void> requestPasswordReset(String email) async {
+    await request('POST', '/api/auth/esqueci-senha', {'email': email});
+  }
+
+  Future<void> resetPassword(String code, String password) async {
+    await request('POST', '/api/auth/redefinir-senha', {
       'codigo': code,
       'senha': password,
     });

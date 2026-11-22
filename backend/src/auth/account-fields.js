@@ -1,7 +1,14 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { z } from 'zod';
 
 export const emailSchema = z.string().trim().toLowerCase().email().max(254);
 export const passwordSchema = z.string().min(8).max(128);
+export const newPasswordSchema = z.string().refine(password =>
+  passwordSchema.safeParse(password).success &&
+  /\p{L}/u.test(password) &&
+  (password.match(/\p{Nd}/gu)?.length ?? 0) >= 2 &&
+  /[^\p{L}\p{Nd}\p{Z}\p{Cc}\s]/u.test(password),
+'Use de 8 a 128 caracteres, com uma letra, dois números e um símbolo.');
 
 export const SCHOOL_YEAR_CODES = {
   '1º ano do Ensino Médio': 1,

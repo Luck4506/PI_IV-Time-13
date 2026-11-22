@@ -103,11 +103,12 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 Text(widget.email),
-                Text(
-                  widget.emailSent == false
-                      ? 'O envio falhou. Aguarde um minuto e peça outro código.'
-                      : 'Copie o código do e-mail e cole abaixo.',
-                ),
+                Text(switch (widget.emailSent) {
+                  true => 'Copie o código do e-mail e cole abaixo.',
+                  false =>
+                    'O envio falhou. Aguarde um minuto e peça outro código.',
+                  null => 'Confira sua caixa de entrada. Se o código não chegar, aguarde um minuto e peça outro.',
+                }),
                 TextFormField(
                   key: codeKey,
                   controller: code,

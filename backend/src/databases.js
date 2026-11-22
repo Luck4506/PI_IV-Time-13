@@ -1,8 +1,10 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { MongoClient } from 'mongodb';
 import neo4j from 'neo4j-driver';
 import { ensureCollection } from './mongo-collections.js';
 import { initializeTrails } from './trail-storage.js';
 import { verificationCollection } from './auth/email-verification.js';
+import { recoveryCollection } from './auth/password-recovery.js';
 import { initializeClasses } from './school/classes.js';
 
 export function createDatabases(config) {
@@ -90,6 +92,10 @@ export async function initializeMongo(databases) {
   await db.collection(verificationCollection).createIndex(
     { tokenHash: 1 }, { name: 'link_de_confirmacao_unico', unique: true, sparse: true },
   );
+  await db.collection(recoveryCollection).createIndexes([
+    { key: { tokenHash: 1 }, name: 'codigo_de_recuperacao_unico', unique: true },
+    { key: { expiraEm: 1 }, name: 'expiracao_dos_codigos', expireAfterSeconds: 0 },
+  ]);
 
   await initializeTrails(databases);
   await initializeClasses(databases);

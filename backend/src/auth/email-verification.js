@@ -1,32 +1,14 @@
-import { createHash, randomBytes } from 'node:crypto';
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { z } from 'zod';
 import { dummyHash, verifyPassword } from '../security.js';
 import { emailSchema, passwordSchema } from './account-fields.js';
-import { createEmailMailer } from './email-mailer.js';
+import { emailCodePattern, hashEmailCode, newEmailCode } from './email-code.js';
 
 export const verificationCollection = 'verificacoes_email';
 export const emailPendingCode = 'EMAIL_NAO_CONFIRMADO';
 
-const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
-const tokenLife = 30 * 60 * 1000;
-const resendDelay = 60 * 1000;
-const hash = token => createHash('sha256').update(token).digest('hex');
-
-export function createEmailVerification({ databases, config, sendMail = createEmailMailer(config), now = Date.now }) {
+export function createEmailVerification({ databases, config, sendMail, now }) {
   const records = databases.db.collection(verificationCollection);
-
-  function newCode() {
-    const token = randomBytes(32).toString('base64url');
-    const time = now();
-    return {
-      token,
-      fields: {
-        tokenHash: hash(token),
-        expiraEm: new Date(time + tokenLife),
-        reenviarDepoisDe: new Date(time + resendDelay),
-      },
-    };
-  }
 
   async function deliver(email, token) {
     try {
@@ -44,12 +26,24 @@ export function createEmailVerification({ databases, config, sendMail = createEm
     available: Boolean(sendMail),
 
     async prepare(user, session) {
-      const { token, fields } = newCode();
+      const { token, fields } = newEmailCode(now());
       await records.insertOne({ _id: user._id, email: user.email, ...fields }, { session });
       return token;
     },
 
-    deliver,
+    async deliverBefore(email, token, deadline) {
+      const delivery = deliver(email, token);
+      const remaining = deadline - performance.now();
+      if (remaining <= 0) return null;
+
+      let timer;
+      try {
+        const timeout = new Promise(resolve => { timer = setTimeout(resolve, remaining, null); });
+        return await Promise.race([delivery, timeout]);
+      } finally {
+        clearTimeout(timer);
+      }
+    },
 
     async pending(user) {
       const record = await records.findOne({ _id: user._id });
@@ -62,7 +56,7 @@ export function createEmailVerification({ databases, config, sendMail = createEm
       const valid = await verifyPassword(password, user?.senhaHash ?? dummyHash);
       if (!user || !valid) return;
 
-      const { token, fields } = newCode();
+      const { token, fields } = newEmailCode(now());
       // A consulta e a troca ocorrem juntas. Apenas um pedido atualiza o código.
       const record = await records.findOneAndUpdate(
         {
@@ -78,7 +72,7 @@ export function createEmailVerification({ databases, config, sendMail = createEm
     },
 
     async confirm(token, password) {
-      const tokenHash = hash(token);
+      const tokenHash = hashEmailCode(token);
       const record = await records.findOne({ tokenHash, expiraEm: { $gt: new Date(now()) } });
       const user = record
         ? await databases.users.findOne({ _id: record._id, email: record.email })
@@ -104,7 +98,7 @@ export function createEmailVerification({ databases, config, sendMail = createEm
 export function mountEmailVerification(app, verification, authLimit) {
   const resendInput = z.object({ email: emailSchema, senha: passwordSchema }).strict();
   const confirmation = z.object({
-    codigo: z.string().trim().regex(tokenPattern),
+    codigo: z.string().trim().regex(emailCodePattern),
     senha: passwordSchema,
   }).strict();
 

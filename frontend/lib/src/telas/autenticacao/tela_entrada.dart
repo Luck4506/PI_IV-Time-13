@@ -74,6 +74,26 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _openPasswordRecovery() async {
+    final email = await Navigator.push<String>(
+      context,
+      MaterialPageRoute<String>(
+        builder: (_) =>
+            PasswordRecoveryScreen(initialEmail: emailController.text.trim()),
+      ),
+    );
+    if (!mounted || email == null) return;
+
+    emailController.text = email;
+    passwordController.clear();
+    setState(() => error = null);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Senha redefinida. Entre com a nova senha.'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -152,13 +172,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Recuperação de senha em breve!'),
-                          ),
-                        );
-                      },
+                      onPressed: loading ? null : _openPasswordRecovery,
                       child: const Text('Esqueci minha senha'),
                     ),
                   ),

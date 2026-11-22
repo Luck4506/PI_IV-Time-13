@@ -6,7 +6,9 @@ import { limitarTentativas } from '../tcp-router.js';
 import { dummyHash, hashPassword, verifyPassword } from '../security.js';
 import { codeField } from '../school/class-routes.js';
 import { emailSchema, passwordSchema, SCHOOL_YEAR_CODES, schoolYearSchema } from './account-fields.js';
+import { createEmailMailer } from './email-mailer.js';
 import { createEmailVerification, emailPendingCode, mountEmailVerification } from './email-verification.js';
+import { mountPasswordRecovery } from './password-recovery.js';
 import { publicUser } from './session.js';
 
 const anosPorCodigo = Object.fromEntries(
@@ -74,7 +76,8 @@ export function mountAccountRoutes(app, { databases, config, sessions, classes, 
     const email = emailSchema.safeParse(req.body?.email);
     return email.success ? email.data : req.ip;
   });
-  const verification = createEmailVerification({ databases, config, ...emailOptions });
+  const { sendMail = createEmailMailer(config), now = Date.now } = emailOptions;
+  const verification = createEmailVerification({ databases, config, sendMail, now });
 
   async function saveRegistration(user, turma) {
     if (!turma && !verification.required) {
@@ -92,8 +95,11 @@ export function mountAccountRoutes(app, { databases, config, sessions, classes, 
   }
 
   mountEmailVerification(app, verification, authLimit);
+  mountPasswordRecovery(app, { databases, sendMail, now });
 
   app.post('/api/auth/cadastro', limitarPorConta, async (req, res) => {
+    // O envio tem de devolver o estado da conta antes dos 10 segundos do Java.
+    const emailReplyDeadline = performance.now() + 8000;
     const data = registration.parse(req.body);
     const isTeacher = data.perfil === 'teacher';
 
@@ -137,7 +143,7 @@ export function mountAccountRoutes(app, { databases, config, sessions, classes, 
 
     const confirmationCode = await saveRegistration(user, turma);
     if (confirmationCode) {
-      const emailEnviado = await verification.deliver(user.email, confirmationCode);
+      const emailEnviado = await verification.deliverBefore(user.email, confirmationCode, emailReplyDeadline);
       return res.status(201).json({ verificacaoPendente: true, emailEnviado });
     }
 

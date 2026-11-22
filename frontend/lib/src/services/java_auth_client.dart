@@ -98,11 +98,12 @@ class JavaAuthClient {
         }, 403);
       }
       final emailSent = message.startsWith('[EMAIL_CONFIRMACAO_ENVIADA] ');
-      if (!isLogin &&
-          (emailSent || message.startsWith('[EMAIL_CONFIRMACAO_PENDENTE] '))) {
+      final emailFailed = message.startsWith('[EMAIL_CONFIRMACAO_PENDENTE] ');
+      final emailSending = message.startsWith('[EMAIL_CONFIRMACAO_EM_ENVIO] ');
+      if (!isLogin && (emailSent || emailFailed || emailSending)) {
         return TcpResponse({
           'verificacaoPendente': true,
-          'emailEnviado': emailSent,
+          'emailEnviado': emailSending ? null : emailSent,
         }, 201);
       }
     }
