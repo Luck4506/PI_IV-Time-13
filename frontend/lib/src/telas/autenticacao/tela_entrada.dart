@@ -145,6 +145,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     enabled: !loading,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
+                      hintText: 'Digite seu e-mail',
                       prefixIcon: Icon(Icons.mail_outline_rounded),
                     ),
                   ),

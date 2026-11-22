@@ -23,7 +23,21 @@ void main() {
 
   testWidgets('inicia no login e rejeita e-mail inválido', (tester) async {
     await start(tester);
-    expect(find.text('Que bom ter você de volta'), findsOneWidget);
+    final heading = find.text('Que bom ter você de volta');
+    expect(heading, findsOneWidget);
+    expect(find.text('Gabariteii'), findsOneWidget);
+    expect(
+      find.image(const AssetImage('assets/images/gabariteii_logo.png')),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<MaterialApp>(find.byType(MaterialApp)).title,
+      'Gabariteii',
+    );
+    expect(
+      Localizations.localeOf(tester.element(heading)),
+      const Locale('pt', 'BR'),
+    );
     await tester.enterText(find.byType(TextFormField).first, 'invalido');
     await tap(tester, find.byKey(const Key('login-button')));
     expect(find.text('Informe um e-mail válido.'), findsOneWidget);
@@ -48,8 +62,7 @@ void main() {
           .onPressed,
       isNull,
     );
-    await tester.pageBack();
-    await tester.pumpAndSettle();
+    await tap(tester, find.byType(BackButton));
     await tap(tester, find.text('Perfil'));
     await tap(tester, find.text('Sair'));
     expect(find.text('Que bom ter você de volta'), findsOneWidget);
@@ -72,9 +85,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('3º A'), findsNothing);
     await tap(tester, find.text('3º B').last);
-    expect(find.text('3º B · Matemática'), findsOneWidget);
-    expect(find.text('29'), findsOneWidget);
-    expect(find.text('73%'), findsOneWidget);
+    expect(find.text('Desempenho em Matemática'), findsOneWidget);
+    expect(
+      find.textContaining('4 alunos · 20 respostas · 60%'),
+      findsOneWidget,
+    );
+    expect(find.text('Q1 · Menor desempenho'), findsOneWidget);
     await tap(tester, find.text('João Souza'));
     expect(find.text('Detalhes do aluno'), findsOneWidget);
     expect(tester.takeException(), isNull);

@@ -1,11 +1,8 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:trilha/src/graph_quiz_screen.dart';
 import 'package:trilha/src/services/api_service.dart';
+import 'package:trilha/src/services/tcp_client.dart';
 import 'package:trilha/src/telas_autenticacao.dart';
 import 'package:trilha/src/user_trail_view.dart';
 
@@ -15,37 +12,31 @@ void main() {
     (tester) async {
       var unavailable = true;
       ApiService.instance = ApiService(
-        client: MockClient((request) async {
+        send: (request) async {
           if (request.method == 'POST' && unavailable) {
-            return http.Response(
-              jsonEncode({'erro': 'Tente salvar novamente.'}),
-              503,
-            );
+            return TcpResponse({'erro': 'Tente salvar novamente.'}, 503);
           }
-          return http.Response(
-            jsonEncode({
-              'trilha': {
-                'id': 't1',
-                'tipo': 'pratica',
-                'modo': 'normal',
-                'itens': [
-                  {
-                    'questaoId': 'Q1',
-                    'disciplina': 'Física',
-                    'questao': {
-                      'questao': 'Qual a resposta?',
-                      'alternativaA': 'Correta',
-                      'alternativaB': 'Incorreta',
-                    },
+          return TcpResponse({
+            'trilha': {
+              'id': 't1',
+              'tipo': 'pratica',
+              'modo': 'normal',
+              'itens': [
+                {
+                  'questaoId': 'Q1',
+                  'disciplina': 'Física',
+                  'questao': {
+                    'questao': 'Qual a resposta?',
+                    'alternativaA': 'Correta',
+                    'alternativaB': 'Incorreta',
                   },
-                ],
-              },
-              if (request.method == 'POST')
-                'resposta': {'correta': false, 'gabarito': 'A'},
-            }),
-            200,
-          );
-        }),
+                },
+              ],
+            },
+            if (request.method == 'POST')
+              'resposta': {'correta': false, 'gabarito': 'A'},
+          }, 200);
+        },
       );
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -94,42 +85,38 @@ void main() {
     tester,
   ) async {
     ApiService.instance = ApiService(
-      client: MockClient(
-        (request) async => http.Response(
-          jsonEncode(
-            request.url.path.endsWith('/t1')
-                ? {
-                    'trilha': {
-                      'id': 't1',
-                      'tipo': 'revisao',
-                      'modo': 'normal',
-                      'status': 'em_andamento',
-                      'itens': [
-                        {
-                          'questaoId': 'Q1',
-                          'resposta': {'correta': false},
-                        },
-                      ],
-                      'etapas': [
-                        {
-                          'id': 'c1',
-                          'nome': 'Queda livre',
-                          'status': 'concluida',
-                          'questaoIds': ['Q1'],
-                        },
-                        {
-                          'id': 'c2',
-                          'nome': 'Energia',
-                          'status': 'disponivel',
-                          'questaoIds': ['Q2'],
-                        },
-                      ],
+      send: (request) async => TcpResponse(
+        Uri.parse(request.path).path.endsWith('/t1')
+            ? {
+                'trilha': {
+                  'id': 't1',
+                  'tipo': 'revisao',
+                  'modo': 'normal',
+                  'status': 'em_andamento',
+                  'itens': [
+                    {
+                      'questaoId': 'Q1',
+                      'resposta': {'correta': false},
                     },
-                  }
-                : {'trilhas': []},
-          ),
-          200,
-        ),
+                  ],
+                  'etapas': [
+                    {
+                      'id': 'c1',
+                      'nome': 'Queda livre',
+                      'status': 'concluida',
+                      'questaoIds': ['Q1'],
+                    },
+                    {
+                      'id': 'c2',
+                      'nome': 'Energia',
+                      'status': 'disponivel',
+                      'questaoIds': ['Q2'],
+                    },
+                  ],
+                },
+              }
+            : {'trilhas': []},
+        200,
       ),
     );
     await tester.pumpWidget(
@@ -153,6 +140,23 @@ void main() {
   testWidgets('escola é condicional para aluno e obrigatória para professor', (
     tester,
   ) async {
+    var attempts = 0;
+    ApiService.instance = ApiService(
+      send: (request) async {
+        expect(Uri.parse(request.path).path, '/api/escolas');
+        if (++attempts == 1) {
+          return TcpResponse({'erro': 'Tente novamente.'}, 503);
+        }
+        return TcpResponse({
+          'escolas': [
+            {
+              'codigo': 'ESCOLA-DEMO-001',
+              'nome': 'Escola Horizonte — Demonstração',
+            },
+          ],
+        }, 200);
+      },
+    );
     tester.view.physicalSize = const Size(390, 1100);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -160,9 +164,15 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: RegisterScreen()));
     await tester.pumpAndSettle();
     expect(find.text('Escola'), findsNothing);
+    expect(find.byKey(const Key('class-code-register')), findsNothing);
     await tester.tap(find.byKey(const Key('educational-registration')));
     await tester.pumpAndSettle();
     expect(find.text('Escola'), findsOneWidget);
+    expect(find.byKey(const Key('class-code-register')), findsOneWidget);
+    expect(find.text('Não foi possível carregar as escolas.'), findsOneWidget);
+    await tester.tap(find.text('Recarregar escolas'));
+    await tester.pumpAndSettle();
+    expect(attempts, 2);
     await tester.tap(find.text('Escola'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Escola Horizonte — Demonstração').last);

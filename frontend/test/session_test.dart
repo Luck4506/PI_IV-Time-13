@@ -1,12 +1,10 @@
-import 'dart:convert';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:trilha/src/app.dart';
 import 'package:trilha/src/services/api_service.dart';
+import 'package:trilha/src/services/tcp_client.dart';
 
 const student = {
   'id': 'u1',
@@ -15,8 +13,8 @@ const student = {
   'perfil': 'student',
   'anoEscolar': '3º ano do Ensino Médio',
 };
-http.Response jsonResponse(Object data, [int status = 200]) =>
-    http.Response(jsonEncode(data), status);
+TcpResponse jsonResponse(Object data, [int status = 200]) =>
+    TcpResponse(data, status);
 
 void main() {
   testWidgets('restaura a conta existente ao abrir sem pedir senha', (
@@ -24,11 +22,14 @@ void main() {
   ) async {
     var restores = 0;
     ApiService.instance = ApiService(
-      client: MockClient((req) async {
-        expect(req.url.path, '/api/usuarios/me');
+      send: (req) async {
+        if (Uri.parse(req.path).path == '/api/aluno/atividade') {
+          return jsonResponse({});
+        }
+        expect(Uri.parse(req.path).path, '/api/usuarios/me');
         restores++;
         return jsonResponse({'usuario': student});
-      }),
+      },
     );
     await tester.pumpWidget(const TrilhaApp());
     await tester.pumpAndSettle();
@@ -44,9 +45,7 @@ void main() {
       tester.binding.platformDispatcher.clearDefaultRouteNameTestValue,
     );
     ApiService.instance = ApiService(
-      client: MockClient(
-        (_) async => jsonResponse({'erro': 'Sessão expirada.'}, 401),
-      ),
+      send: (_) async => jsonResponse({'erro': 'Sessão expirada.'}, 401),
     );
     await tester.pumpWidget(const TrilhaApp());
     await tester.pumpAndSettle();
@@ -62,7 +61,7 @@ void main() {
       tester.binding.platformDispatcher.clearDefaultRouteNameTestValue,
     );
     ApiService.instance = ApiService(
-      client: MockClient((_) async => jsonResponse({'usuario': student})),
+      send: (_) async => jsonResponse({'usuario': student}),
     );
     await tester.pumpWidget(const TrilhaApp());
     await tester.pumpAndSettle();
@@ -77,11 +76,11 @@ void main() {
     tester,
   ) async {
     ApiService.instance = ApiService(
-      client: MockClient(
-        (req) async => req.url.path == '/api/usuarios/me'
-            ? jsonResponse({'usuario': student})
-            : jsonResponse({'erro': 'Sessão encerrada.'}, 401),
-      ),
+      send: (req) async => switch (Uri.parse(req.path).path) {
+        '/api/usuarios/me' => jsonResponse({'usuario': student}),
+        '/api/aluno/atividade' => jsonResponse({}),
+        _ => jsonResponse({'erro': 'Sessão encerrada.'}, 401),
+      },
     );
     await tester.pumpWidget(const TrilhaApp());
     await tester.pumpAndSettle();
@@ -104,11 +103,9 @@ void main() {
     (tester) async {
       var attempts = 0;
       ApiService.instance = ApiService(
-        client: MockClient(
-          (_) async => ++attempts == 1
-              ? jsonResponse({'erro': 'Serviço indisponível.'}, 503)
-              : jsonResponse({'usuario': student}),
-        ),
+        send: (_) async => ++attempts == 1
+            ? jsonResponse({'erro': 'Serviço indisponível.'}, 503)
+            : jsonResponse({'usuario': student}),
       );
       await tester.pumpWidget(const TrilhaApp());
       await tester.pumpAndSettle();
@@ -125,31 +122,25 @@ void main() {
 
   test('logout indisponível não informa que a sessão foi revogada', () async {
     final api = ApiService(
-      client: MockClient(
-        (req) async => req.url.path == '/api/usuarios/me'
-            ? jsonResponse({'usuario': student})
-            : jsonResponse({'erro': 'Sem conexão.'}, 503),
-      ),
+      send: (req) async => Uri.parse(req.path).path == '/api/usuarios/me'
+          ? jsonResponse({'usuario': student})
+          : jsonResponse({'erro': 'Sem conexão.'}, 503),
     );
     await api.restoreSession();
     await expectLater(api.logout(), throwsA(isA<ApiException>()));
     expect(api.user?.id, 'u1');
   });
   test('resposta não objeto da API é tratada como erro recuperável', () async {
-    final api = ApiService(
-      client: MockClient((_) async => http.Response('[]', 200)),
-    );
+    final api = ApiService(send: (_) async => TcpResponse('[]', 200));
     await expectLater(api.restoreSession(), throwsA(isA<ApiException>()));
     expect(api.user, isNull);
   });
 
   test('401 sem JSON também encerra a sessão', () async {
     final api = ApiService(
-      client: MockClient(
-        (req) async => req.url.path == '/api/usuarios/me'
-            ? jsonResponse({'usuario': student})
-            : http.Response('Unauthorized', 401),
-      ),
+      send: (req) async => Uri.parse(req.path).path == '/api/usuarios/me'
+          ? jsonResponse({'usuario': student})
+          : TcpResponse('Unauthorized', 401),
     );
     await api.restoreSession();
     await expectLater(api.questions(), throwsA(isA<ApiException>()));
@@ -159,12 +150,14 @@ void main() {
   test(
     'resposta atrasada de sessão anterior não encerra um novo login',
     () async {
-      final pending = Completer<http.Response>();
+      final pending = Completer<TcpResponse>();
       final api = ApiService(
-        client: MockClient((req) async {
-          if (req.url.path == '/api/questoes') return pending.future;
+        send: (req) async {
+          if (Uri.parse(req.path).path == '/api/questoes') {
+            return pending.future;
+          }
           return jsonResponse({'usuario': student, 'token': 'token-atual'});
-        }),
+        },
       );
       await api.restoreSession();
       final oldRequest = api.questions();
@@ -179,6 +172,36 @@ void main() {
       expect(api.user?.id, 'u1');
     },
   );
+
+  test('logout atrasado preserva uma sessão iniciada depois', () async {
+    final pending = Completer<TcpResponse>();
+    var loginCount = 0;
+    final api = ApiService(
+      send: (request) async {
+        if (request.path == '/api/auth/logout') return pending.future;
+
+        loginCount++;
+        return jsonResponse({
+          'usuario': {...student, 'id': 'conta-$loginCount'},
+          'token': 'sessao-$loginCount',
+        });
+      },
+    );
+
+    Future<AppUser> login() => api.login(
+      email: 'conta@example.com',
+      password: 'SenhaTeste123!',
+      role: 'student',
+    );
+
+    await login();
+    final logout = api.logout();
+    await login();
+    pending.complete(jsonResponse(<String, dynamic>{}, 204));
+    await logout;
+
+    expect(api.user?.id, 'conta-2');
+  });
   test(
     'dados de conta incompletos ou perfil desconhecido não autenticam',
     () async {
@@ -187,7 +210,7 @@ void main() {
         {...student, 'perfil': 'admin'},
       ]) {
         final api = ApiService(
-          client: MockClient((_) async => jsonResponse({'usuario': payload})),
+          send: (_) async => jsonResponse({'usuario': payload}),
         );
         await expectLater(api.restoreSession(), throwsA(isA<ApiException>()));
         expect(api.user, isNull);
