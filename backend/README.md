@@ -21,6 +21,12 @@ O Node recebe `POST /api/auth/cadastro` e `POST /api/auth/login` em `127.0.0.1:3
 
 Uma sessão é devolvida com `201` no cadastro ou `200` no login. O Java repassa o campo `erro` das recusas `409` e `401`. Quando a conta precisa confirmar o e-mail, a mensagem inclui um código que permite ao Flutter abrir a tela de confirmação sem receber token de sessão. [Contrato do Java](../docs/CONTRATO_SERVIDOR.md)
 
+## Dados de apresentação
+
+Na pasta `backend/`, rode `node --env-file=.env scripts/seed-apresentacao.js` para conferir o lote. O script prepara três escolas, seis turmas, seis professores e 36 alunos fictícios, com matrículas, respostas e progresso de leitura. Usa questões e materiais já publicados no Aura. A escola Horizonte reaproveita a escola de demonstração anterior e fica visível no seletor de cadastro.
+
+Para aplicar ao banco de apresentação, defina `APRESENTACAO_SEGREDO` com um valor privado de pelo menos 32 caracteres e `APRESENTACAO_ACESSOS` com um caminho de saída fora do Git. Execute o mesmo comando com `--apply`. Guarde o mesmo segredo para futuras execuções. O script preserva as contas e o histórico existentes e retira as marcações de demonstração dos nomes de alunos da antiga escola de teste.
+
 ## Rotas da API
 
 ### Conta e disponibilidade

@@ -1,15 +1,14 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 part of '../../telas_autenticacao.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
     super.key,
-    required this.initialRole,
     this.initialEmail = '',
     this.afterSignup = false,
   });
 
   static const route = '/login';
-  final UserRole initialRole;
   final String initialEmail;
   final bool afterSignup;
 
@@ -18,7 +17,6 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  late UserRole role = widget.initialRole;
   bool hidePassword = true;
   final formKey = GlobalKey<FormState>();
   late final emailController = TextEditingController(text: widget.initialEmail);
@@ -43,7 +41,6 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = await ApiService.instance.login(
         email: emailController.text.trim(),
         password: passwordController.text,
-        role: role.name,
       );
       if (!mounted) return;
       Navigator.pushNamedAndRemoveUntil(
@@ -59,14 +56,12 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       if (e.code == 'EMAIL_NAO_CONFIRMADO') {
         final email = emailController.text.trim().toLowerCase();
-        final selectedRole = role;
         passwordController.clear();
         Navigator.push(
           context,
           MaterialPageRoute<void>(
             builder: (_) => EmailVerificationScreen(
               email: email,
-              role: selectedRole,
               afterSignup: widget.afterSignup,
             ),
           ),
@@ -107,37 +102,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 26),
 
-                  SegmentedButton<UserRole>(
-                    segments: const [
-                      ButtonSegment(
-                        value: UserRole.student,
-                        icon: Icon(Icons.school_outlined),
-                        label: Text('Estudante'),
-                      ),
-                      ButtonSegment(
-                        value: UserRole.teacher,
-                        icon: Icon(Icons.co_present_outlined),
-                        label: Text('Professor'),
-                      ),
-                    ],
-                    selected: {role},
-                    showSelectedIcon: false,
-                    onSelectionChanged: loading
-                        ? null
-                        : (value) => setState(() {
-                            role = value.first;
-                            error = null;
-                          }),
-                    style: ButtonStyle(
-                      visualDensity: VisualDensity.comfortable,
-                      side: WidgetStateProperty.all(
-                        const BorderSide(color: AppColors.border),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 26),
-
                   const Text(
                     'E-mail',
                     style: TextStyle(fontWeight: FontWeight.w700),
@@ -145,7 +109,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 8),
 
                   TextFormField(
-                    key: ValueKey('email-${role.name}'),
                     validator: validateEmail,
                     controller: emailController,
                     enabled: !loading,
@@ -222,11 +185,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   Center(
                     child: TextButton(
-                      onPressed: () => Navigator.pushNamed(
-                        context,
-                        RegisterScreen.route,
-                        arguments: role,
-                      ),
+                      onPressed: () =>
+                          Navigator.pushNamed(context, RegisterScreen.route),
                       child: const Text('Ainda não tenho uma conta'),
                     ),
                   ),

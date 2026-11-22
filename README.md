@@ -82,6 +82,8 @@ Cada mensagem TCP é um objeto JSON em UTF-8, terminado por uma quebra de linha.
 
 As senhas são armazenadas no MongoDB com hash scrypt. O token fica em memória no aplicativo, então é preciso entrar novamente depois de fechar o app. Quando a confirmação por e-mail está ativa, a conta nova recebe um código. O vínculo com a escola é declarado no cadastro. [Autenticação e configuração SMTP](AUTENTICACAO.md)
 
+No login, informe o e-mail e a senha. O aplicativo abre a área de aluno ou de professor pelo perfil da conta devolvido pelo Node. O formulário de cadastro continua pedindo o perfil da nova conta.
+
 ## Bancos e catálogo
 
 Os bancos compartilhados do grupo são MongoDB Atlas e Neo4j Aura. O catálogo ativo no Aura guarda o enunciado, as alternativas, o gabarito e os vínculos de conteúdo de cada questão. O Neo4j precisa estar disponível para carregar questões e iniciar diagnósticos ou práticas.

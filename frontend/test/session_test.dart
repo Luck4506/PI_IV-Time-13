@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -162,11 +163,7 @@ void main() {
       await api.restoreSession();
       final oldRequest = api.questions();
       final oldResult = expectLater(oldRequest, throwsA(isA<ApiException>()));
-      await api.login(
-        email: 'conta@example.com',
-        password: 'SenhaTeste123!',
-        role: 'student',
-      );
+      await api.login(email: 'conta@example.com', password: 'SenhaTeste123!');
       pending.complete(jsonResponse({'erro': 'Sessão antiga expirada.'}, 401));
       await oldResult;
       expect(api.user?.id, 'u1');
@@ -188,11 +185,8 @@ void main() {
       },
     );
 
-    Future<AppUser> login() => api.login(
-      email: 'conta@example.com',
-      password: 'SenhaTeste123!',
-      role: 'student',
-    );
+    Future<AppUser> login() =>
+        api.login(email: 'conta@example.com', password: 'SenhaTeste123!');
 
     await login();
     final logout = api.logout();

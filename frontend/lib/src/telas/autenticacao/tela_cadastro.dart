@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 part of '../../telas_autenticacao.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -100,13 +101,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
 
       if (registration.needsVerification) {
-        final selectedRole = role;
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute<void>(
             builder: (_) => EmailVerificationScreen(
               email: email.toLowerCase(),
-              role: selectedRole,
               emailSent: registration.emailSent,
               afterSignup: true,
             ),

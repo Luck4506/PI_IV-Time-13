@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trilha/main.dart';
@@ -76,8 +77,8 @@ void main() {
 
   testWidgets('professor acessa a turma selecionada', (tester) async {
     await start(tester);
-    await tap(tester, find.text('Professor'));
-    await fillTestLogin(tester);
+    expect(find.text('Professor'), findsNothing);
+    await fillTestLogin(tester, email: 'professor@example.test');
     await tap(tester, find.byKey(const Key('login-button')));
     expect(find.text('Olá, Ana'), findsOneWidget);
     await tap(tester, find.text('Turmas'));
@@ -100,8 +101,8 @@ void main() {
     tester,
   ) async {
     await start(tester);
-    await tap(tester, find.text('Professor'));
     await tap(tester, find.text('Ainda não tenho uma conta'));
+    await tap(tester, find.text('Professor'));
     expect(find.text('Escola'), findsOneWidget);
     expect(
       find.text('Professores sempre usam uma conta educacional.'),

@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -23,7 +24,6 @@ class _TrilhaAppState extends State<TrilhaApp> {
       WidgetsBinding.instance.platformDispatcher.defaultRouteName;
   bool restoring = true;
   bool hadSession = false;
-  UserRole lastRole = UserRole.student;
   String? restoreError;
 
   String get homeRoute =>
@@ -45,18 +45,12 @@ class _TrilhaAppState extends State<TrilhaApp> {
   void _sessionChanged() {
     final ended = hadSession && api.user == null;
     hadSession = api.user != null;
-    if (api.user case final current?) {
-      lastRole = current.role == 'teacher'
-          ? UserRole.teacher
-          : UserRole.student;
-    }
     if (ended && !restoring) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && api.user == null) {
           navigator.currentState?.pushNamedAndRemoveUntil(
             LoginScreen.route,
             (_) => false,
-            arguments: lastRole,
           );
         }
       });
@@ -119,7 +113,7 @@ class _TrilhaAppState extends State<TrilhaApp> {
     final public = [LoginScreen.route, RegisterScreen.route].contains(name);
     Widget screen;
     if (!public && api.user == null) {
-      screen = const LoginScreen(initialRole: UserRole.student);
+      screen = const LoginScreen();
     } else if (!_roleAllows(name)) {
       screen = Builder(
         builder: (context) => Scaffold(
@@ -148,11 +142,7 @@ class _TrilhaAppState extends State<TrilhaApp> {
       );
     } else {
       screen = switch (name) {
-        LoginScreen.route => LoginScreen(
-          initialRole: settings.arguments is UserRole
-              ? settings.arguments as UserRole
-              : UserRole.student,
-        ),
+        LoginScreen.route => const LoginScreen(),
         RegisterScreen.route => const RegisterScreen(),
         DiagnosticIntroScreen.route => const DiagnosticIntroScreen(),
         DiagnosticQuizScreen.route => const DiagnosticQuizScreen(),
@@ -163,7 +153,7 @@ class _TrilhaAppState extends State<TrilhaApp> {
         PracticeScreen.route => const PracticeScreen(),
         _ =>
           api.user == null
-              ? const LoginScreen(initialRole: UserRole.student)
+              ? const LoginScreen()
               : api.user!.role == 'teacher'
               ? const TeacherShell()
               : const StudentShell(),

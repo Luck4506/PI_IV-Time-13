@@ -237,15 +237,12 @@ class ApiService extends ChangeNotifier {
   Future<AppUser> login({
     required String email,
     required String password,
-    required String role,
   }) async {
     return _saveSession(
       await request('POST', JavaAuthClient.loginPath, {
         'email': email,
         'senha': password,
-        'perfil': role,
       }),
-      expectedRole: role,
     );
   }
 

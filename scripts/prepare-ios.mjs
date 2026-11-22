@@ -1,5 +1,5 @@
 // Autoria de Lucas Soares Gonçalves RA 25009467
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { spawn, execFileSync } from 'node:child_process';
 import { once } from 'node:events';
 import { access, lstat, mkdir, open, readFile, readlink, realpath, rename, symlink, writeFile } from 'node:fs/promises';
@@ -94,11 +94,18 @@ async function iniciarEmSegundoPlano(comando, argumentos, nome, cwd, ambiente = 
     });
     await once(filho, 'spawn');
     filho.unref();
-    await writeFile(path.join(local, nome + '.pid'), String(filho.pid));
+    await salvarArquivoLocal(nome + '.pid', String(filho.pid));
     return filho;
   } finally {
     await log.close();
   }
+}
+
+async function salvarArquivoLocal(nome, conteudo) {
+  // Substitui o arquivo sem precisar baixar uma versão antiga do OneDrive.
+  const temporario = path.join(local, nome + '.' + randomUUID() + '.tmp');
+  await writeFile(temporario, conteudo);
+  await rename(temporario, path.join(local, nome));
 }
 
 async function consultar(pedido, endereco) {
@@ -124,7 +131,7 @@ if (estado && estado.corpo.grafo !== (grafoLocal ? 'local' : 'remoto')) {
   throw new Error('A API já está em execução com outra configuração do Neo4j. Encerre a execução anterior para trocar de banco.');
 }
 
-// Um login com e-mail inválido confirma o protocolo Java sem acessar o banco.
+// Confere primeiro se o Java está escutando, mesmo se o Node ainda não subiu.
 const respostaJava = await enviarPedidoTcp(
   { tipo: 'VALIDAR_LOGIN', email: 'invalido', senha: 'teste' }, destinoJava,
 ).catch(() => null);
@@ -146,14 +153,26 @@ if (!estado?.corpo?.mongodb) {
   throw new Error('A API não confirmou a conexão com o MongoDB. Confira .local/api-ios.log.');
 }
 
-const prontidao = await consultarApi('/health/ready').catch(() => null);
+// O e-mail reservado tem formato válido e não pertence a uma conta. A recusa
+// esperada confirma que a solicitação chegou ao Node e consultou o MongoDB.
+const respostaIntegracao = await enviarPedidoTcp({
+  tipo: 'VALIDAR_LOGIN', email: 'verificacao-' + randomUUID() + '@example.test', senha: 'sonda-local',
+}, { ...destinoJava, tempo: 14000 }).catch(() => null);
+if (respostaIntegracao?.codigo !== 'OPERACAO_RECUSADA' ||
+    respostaIntegracao.mensagem !== 'E-mail ou senha incorretos.') {
+  throw new Error('O Java respondeu, mas o login não chegou ao MongoDB. Confira -Dnode.url e AUTH_HTTP_PORT.');
+}
+
+const prontidao = await consultar({ metodo: 'GET', caminho: '/health/ready' }, {
+  ...destino, tempo: 15000,
+}).catch(() => null);
 if (prontidao?.status !== 200) {
   console.warn('Catálogo Neo4j indisponível. O diagnóstico e a prática precisam do grafo.');
 }
 
 // O terminal e o VS Code usam os endereços que o preparo acabou de testar.
 // O arquivo do Flutter contém apenas hosts e portas.
-await writeFile(path.join(local, 'frontend-tcp.json'), JSON.stringify({
+await salvarArquivoLocal('frontend-tcp.json', JSON.stringify({
   API_TCP_HOST: destino.host,
   API_TCP_PORT: String(destino.port),
   JAVA_TCP_HOST: destinoJava.host,

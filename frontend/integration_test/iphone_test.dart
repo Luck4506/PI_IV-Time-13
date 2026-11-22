@@ -97,7 +97,7 @@ void main() {
       (request) => request.path == '/api/auth/login',
     );
     expect(login.method, 'POST');
-    expect(login.data?['perfil'], 'student');
+    expect(login.data?.keys, unorderedEquals(['email', 'senha']));
     final logout = requests.singleWhere(
       (request) => request.path == '/api/auth/logout',
     );
@@ -109,8 +109,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(const TrilhaApp());
-    await tap(tester, find.text('Professor'));
-    await signIn(tester, email, password);
+    await signIn(tester, 'professor@example.test', password);
     await tap(tester, find.text('Turmas'));
     await tap(tester, find.text('3º A'));
 
@@ -157,11 +156,7 @@ void main() {
 
         await api.logout();
         expect(api.user, isNull);
-        final loggedIn = await api.login(
-          email: email,
-          password: password,
-          role: 'student',
-        );
+        final loggedIn = await api.login(email: email, password: password);
         expect(loggedIn.id, registration.user?.id);
         await api.restoreSession();
         expect(api.user?.name, 'João de Ávila');

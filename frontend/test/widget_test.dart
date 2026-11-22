@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trilha/src/app.dart';
@@ -20,10 +21,10 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const TrilhaApp());
     await tester.pumpAndSettle();
-    if (professor) {
-      await tocar(tester, find.text('Professor'));
-    }
-    await fillTestLogin(tester);
+    await fillTestLogin(
+      tester,
+      email: professor ? 'professor@example.test' : 'teste@example.com',
+    );
     await tocar(tester, find.byKey(const Key('login-button')));
   }
 

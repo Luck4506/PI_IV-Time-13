@@ -1,16 +1,15 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 part of '../../telas_autenticacao.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
   const EmailVerificationScreen({
     super.key,
     required this.email,
-    required this.role,
     this.emailSent,
     this.afterSignup = false,
   });
 
   final String email;
-  final UserRole role;
   final bool? emailSent;
   final bool afterSignup;
 
@@ -78,7 +77,6 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       MaterialPageRoute<void>(
         settings: const RouteSettings(name: LoginScreen.route),
         builder: (_) => LoginScreen(
-          initialRole: widget.role,
           initialEmail: widget.email,
           afterSignup: widget.afterSignup,
         ),

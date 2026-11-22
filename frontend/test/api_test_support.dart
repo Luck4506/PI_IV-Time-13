@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trilha/src/services/api_service.dart';
@@ -52,7 +53,10 @@ Future<TcpResponse> Function(TcpRequest) createTestTransport() {
       return TcpResponse(<String, dynamic>{}, 204);
     }
     final data = request.data!;
-    final teacher = data['perfil'] == 'teacher';
+    final isLogin = request.path == '/api/auth/login';
+    final teacher = isLogin
+        ? data['email'] == 'professor@example.test'
+        : data['perfil'] == 'teacher';
     return TcpResponse({
       'token': 'test-session',
       'usuario': {
@@ -67,8 +71,11 @@ Future<TcpResponse> Function(TcpRequest) createTestTransport() {
   };
 }
 
-Future<void> fillTestLogin(WidgetTester tester) async {
-  await tester.enterText(find.byType(TextFormField).at(0), 'teste@example.com');
+Future<void> fillTestLogin(
+  WidgetTester tester, {
+  String email = 'teste@example.com',
+}) async {
+  await tester.enterText(find.byType(TextFormField).at(0), email);
   await tester.enterText(find.byType(TextFormField).at(1), 'SenhaTeste123!');
 }
 
