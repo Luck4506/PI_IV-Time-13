@@ -36,7 +36,9 @@ void main() {
     final fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), 'teste@example.com');
     await tester.enterText(fields.at(1), 'SenhaTeste123!');
-    await tester.tap(find.byKey(const Key('login-button')));
+    final loginButton = find.byKey(const Key('login-button'));
+    await tester.ensureVisible(loginButton);
+    await tester.tap(loginButton);
     await tester.pumpAndSettle();
 
     expect(find.text('Confirme seu e-mail'), findsOneWidget);
