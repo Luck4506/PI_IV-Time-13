@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import neo4j from 'neo4j-driver';
 import { z } from 'zod';
 import { ApiError } from './api-error.js';
@@ -13,8 +14,8 @@ const answerSchema = z.object({ alternativa: z.enum(ANSWER_LETTERS) }).strict();
 const publicFields = [
   'id', 'nome', 'questao', 'enunciado', 'ano', 'banca', 'numero',
   'alternativaA', 'alternativaB', 'alternativaC', 'alternativaD', 'alternativaE',
-  'topicosRelacionados', 'imagens', 'disciplina', 'caderno', 'provaUrl',
-  'paginaProva', 'dificuldade',
+  'topicosRelacionados', 'imagens', 'disciplina', 'caderno',
+  'paginaProva', 'dificuldade', 'creditoFonte',
 ];
 
 function serialize(value) {

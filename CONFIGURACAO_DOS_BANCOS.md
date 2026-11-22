@@ -32,14 +32,24 @@ node scripts/iniciar.mjs --neo4j-local
 
 ## Publicar o catálogo
 
-O lote versionado reúne questões do ENEM, FUVEST, Unicamp, Unesp e PUC-Campinas. Cada entrada traz a referência ao caderno, a página e o gabarito. O lote pode ser conferido sem conectar aos bancos. Na pasta `backend/`:
+O lote versionado reúne referências históricas do ENEM, FUVEST, Unicamp, Unesp e PUC-Campinas. Para consultar seus totais sem conectar aos bancos, rode na pasta `backend/`:
 
 ```sh
 node scripts/seed-questions.js --dry-run
 ```
 
-Para publicar em uma instância nova ou depois de atualizar o catálogo, rode `npm run db:seed:questions` em `backend/`. O comando grava as questões e as relações no Neo4j e publica no MongoDB os materiais que ainda não existem. As questões antigas usadas em históricos são preservadas.
+`npm run db:seed:questions` grava essas referências e relações no Neo4j e publica no MongoDB os materiais que ainda não existem. O catálogo ativo de questões completas está no Aura. Para instalar em outra instância, restaure também os dados desse catálogo com seus enunciados, alternativas e relacionamentos.
 
 Para publicar no grafo local, use `node --env-file=.env --env-file=.env.neo4j-local scripts/seed-questions.js` a partir de `backend/`. Depois, confira o catálogo e as referências com `npm run db:audit` para o ambiente padrão ou com `node --env-file=.env --env-file=.env.neo4j-local scripts/audit-data.js` para o ambiente local.
+
+## Publicar materiais de estudo
+
+Cada subtema é ligado ao seu material no Neo4j por `(:Conteudo)-[:TEM_MATERIAL]->(:MaterialEstudo)`. A API busca o material pelo identificador do subtema. Bancos antigos podem fornecer pelo MongoDB os materiais que ainda não estiverem publicados no grafo. A versão do material é a mesma usada no progresso de leitura do MongoDB.
+
+Com os subtemas cadastrados, rode o comando na pasta `backend/`. Ele reaproveita os blocos já publicados no MongoDB e cadastra explicações curtas para os demais subtemas. Use `--dry-run` para conferir os totais antes de escrever no grafo.
+
+```sh
+node --env-file=.env scripts/publish-study-materials.js
+```
 
 Backups e credenciais continuam fora do Git. A migração do banco e a publicação do catálogo são operações de manutenção. Para usar um ambiente compartilhado já configurado, basta conferir a conexão.

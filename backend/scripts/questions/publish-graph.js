@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import assert from 'node:assert/strict';
 import neo4j from 'neo4j-driver';
 import { edition } from './catalog.js';
@@ -106,7 +107,6 @@ async function publishTopic(tx, topic) {
       AND q.caderno = row.caderno AND q.disciplina = row.disciplina AND q.nome = row.nome
       AND q.provaUrl = row.provaUrl AND q.paginaProva = row.paginaProva
       AND q.gabaritoUrl = row.gabaritoUrl AND q.dificuldade = row.dificuldade
-      AND coalesce(q.retirada, false) = false
     MERGE (q)-[:ABORDA]->(c)
     RETURN count(q) AS total
   `, { id: topic.id, subject: topic.subject, name: topic.name, rows });

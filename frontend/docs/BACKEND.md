@@ -4,4 +4,4 @@ O Flutter usa `JAVA_TCP_HOST` e `JAVA_TCP_PORT` para cadastro e login no Java, c
 
 `lib/src/services/api_service.dart` escolhe o destino e mantém o token em memória. `java_auth_client.dart` converte cadastro e login para o formato do Java. `tcp_client.dart` envia e lê JSON por linha nas duas conexões. [Contrato de cadastro e login](../../docs/CONTRATO_SERVIDOR.md)
 
-O app abre os cadernos das questões no endereço fornecido pelo catálogo. A alternativa escolhida volta à API para ser corrigida e gravada na trilha. [Protocolo e rotas](../../backend/README.md)
+O app exibe o enunciado, as alternativas e a referência da prova na mesma tela. A alternativa escolhida volta à API para ser corrigida e gravada na trilha. [Protocolo e rotas](../../backend/README.md)

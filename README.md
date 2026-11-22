@@ -61,7 +61,7 @@ Crie a conta com nome, e-mail, senha, data de nascimento e ano escolar. A lista 
 
 Em **Trilha**, comece pelo diagnóstico ou escolha **Praticar por disciplina**. A trilha recomenda primeiro conteúdos em que houve dificuldade. Quando o aluno acerta tudo, ela propõe assuntos diferentes para continuar o estudo. Nas etapas com material publicado, conclua a leitura antes da prática. A próxima etapa é liberada quando a anterior estiver concluída.
 
-As questões apontam para a página do caderno do vestibular. Abra a página, volte ao aplicativo e marque a alternativa. Respostas e leituras ficam salvas. As telas de progresso, conquistas e notificações usam o histórico da conta.
+Leia o enunciado e marque a alternativa na própria tela da questão. O app identifica a banca, o ano e o caderno para consulta da fonte. Respostas e leituras ficam salvas. As telas de progresso, conquistas e notificações usam o histórico da conta.
 
 ### Professor
 
@@ -84,7 +84,7 @@ As senhas são armazenadas no MongoDB com hash scrypt. O token fica em memória 
 
 ## Bancos e catálogo
 
-Os bancos compartilhados do grupo são MongoDB Atlas e Neo4j Aura. O catálogo versionado contém 141 questões de 10 disciplinas, divididas em 38 conteúdos. O Neo4j precisa estar disponível para carregar questões e iniciar diagnósticos ou práticas.
+Os bancos compartilhados do grupo são MongoDB Atlas e Neo4j Aura. O catálogo ativo no Aura guarda o enunciado, as alternativas, o gabarito e os vínculos de conteúdo de cada questão. O Neo4j precisa estar disponível para carregar questões e iniciar diagnósticos ou práticas.
 
 Para conferir as conexões e o catálogo sem abrir o aplicativo, rode na raiz:
 

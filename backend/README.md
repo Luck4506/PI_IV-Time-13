@@ -58,7 +58,7 @@ O cadastro inclui `nome`, `email`, `senha`, `perfil`, `dataNascimento`, `cadastr
 
 Para iniciar uma trilha, envie `tipo` (`diagnostico` ou `pratica`) e uma `chave` de 16 a 100 caracteres. Reutilize a chave se precisar repetir o mesmo pedido. A prática aceita `disciplina` para limitar a seleção ao assunto escolhido. Para gravar uma resposta, envie `questaoId` e `alternativa` pelo endpoint da trilha.
 
-Após um erro, o gerador dá prioridade a conteúdos relacionados e procura questões mais fáceis para começar a revisão. Com todos os acertos, ele procura outros conteúdos e varia as disciplinas. As questões oficiais são abertas na página do caderno indicado pelo catálogo.
+Após um erro, o gerador dá prioridade a conteúdos relacionados e procura questões mais fáceis para começar a revisão. Com todos os acertos, ele procura outros conteúdos e varia as disciplinas. O catálogo ativo inclui questões oficiais com enunciado e alternativas completos na tela.
 
 ### Turmas, atividade e notificações
 

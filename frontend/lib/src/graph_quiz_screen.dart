@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import 'package:flutter/material.dart';
 
 import 'exam_question_source.dart';
@@ -135,6 +136,39 @@ class _GraphQuizScreenState extends State<GraphQuizScreen> {
         });
         _showFeedback();
       }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => error = e.message);
+    } finally {
+      if (mounted) setState(() => submitting = false);
+    }
+  }
+
+  Future<void> _startWithCompleteQuestions() async {
+    if (submitting) return;
+    setState(() {
+      submitting = true;
+      error = null;
+    });
+
+    try {
+      final diagnostic = trail?['tipo'] == 'diagnostico';
+      final data = await ApiService.instance.startTrail(
+        diagnostic: diagnostic,
+        key: startKey,
+      );
+      final id = (data['trilha'] as Map?)?['id'];
+      if (id is! String) {
+        throw const ApiException(
+          'Não foi possível iniciar uma nova atividade.',
+        );
+      }
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) => GraphQuizScreen(trailId: id, diagnostic: diagnostic),
+        ),
+      );
     } on ApiException catch (e) {
       if (mounted) setState(() => error = e.message);
     } finally {
@@ -320,8 +354,8 @@ class _GraphQuizScreenState extends State<GraphQuizScreen> {
   Widget _currentQuestion() {
     final item = items[current];
     final question = item['questao'] as Map<String, dynamic>?;
-    final hasBooklet =
-        question != null && ExamQuestionSource.bookletUrl(question) != null;
+    final statement = question?['questao'] ?? question?['enunciado'];
+    final images = question?['imagens'];
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760),
@@ -333,40 +367,34 @@ class _GraphQuizScreenState extends State<GraphQuizScreen> {
               'Questão ${current + 1} de ${items.length} · ${item['disciplina']}',
             ),
             const SizedBox(height: 6),
-            if (!hasBooklet) Text(item['questaoId'] as String),
             const SizedBox(height: 12),
             if (question == null) ...[
               const Text(
                 'Esta questão não está disponível no momento. Sua trilha está salva.',
               ),
               TextButton(onPressed: _load, child: const Text('Recarregar')),
+            ] else if (statement is! String ||
+                statement.trim().isEmpty ||
+                images is List && images.isNotEmpty) ...[
+              const Text(
+                'Esta questão antiga ainda não pode ser respondida na tela. Suas respostas anteriores estão salvas.',
+              ),
+              FilledButton(
+                onPressed: submitting ? null : _startWithCompleteQuestions,
+                child: Text(
+                  submitting ? 'Carregando…' : 'Iniciar nova atividade',
+                ),
+              ),
+              if (error != null) Text(error!),
             ] else ...[
-              if (hasBooklet)
-                ExamQuestionSource(question: question)
-              else
-                Text(
-                  (question['questao'] ??
-                          question['enunciado'] ??
-                          question['nome'] ??
-                          '')
-                      .toString(),
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              if (hasBooklet &&
-                  (question['imagens'] as List?)?.isNotEmpty == true) ...[
-                const SizedBox(height: 12),
-                const Text(
-                  'Consulte o caderno da prova para ver a imagem desta questão.',
-                ),
-              ],
+              ExamQuestionSource(question: question),
+              Text(statement, style: Theme.of(context).textTheme.bodyLarge),
               const SizedBox(height: 20),
               for (final letter in ['A', 'B', 'C', 'D', 'E'])
                 if (question['alternativa$letter'] != null)
                   QuizAnswerOption(
                     letter: letter,
-                    label: hasBooklet
-                        ? 'Alternativa $letter'
-                        : '$letter. ${question['alternativa$letter']}',
+                    label: '$letter. ${question['alternativa$letter']}',
                     selected: selected == letter,
                     correct: result?['gabarito'] == letter,
                     wrong: result?['correta'] == false && selected == letter,

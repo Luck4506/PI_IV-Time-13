@@ -1,22 +1,20 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { ApiError } from './api-error.js';
+import { loadStudyMaterials } from './study-materials.js';
 import { contentStages } from './trail-planning.js';
 
-export async function stagesWithProgress(databases, trail, stages = contentStages(trail)) {
+export async function stagesWithProgress(databases, trail, stages = contentStages(trail), materials) {
   if (!stages.length) return stages;
 
   const stageIds = stages.map(stage => stage.id);
-  const [materials, progress] = await Promise.all([
-    databases.db.collection('materiais_conteudo').find(
-      { _id: { $in: stageIds }, publicado: true },
-      { projection: { titulo: 1, versao: 1, blocos: { $slice: 1 } } },
-    ).toArray(),
+  const [materialsById, progress] = await Promise.all([
+    materials ?? loadStudyMaterials(databases, stageIds),
     databases.db.collection('progresso_conteudos').find({
       usuarioId: trail.usuarioId,
       trilhaId: trail._id,
     }).toArray(),
   ]);
 
-  const materialsById = new Map(materials.map(material => [material._id, material]));
   const progressById = new Map(progress.map(read => [read.conteudoId, read]));
 
   return stages.map(stage => {

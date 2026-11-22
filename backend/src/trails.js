@@ -1,8 +1,10 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { ObjectId } from 'mongodb';
 import { z } from 'zod';
 import { ApiError } from './api-error.js';
 import { ANSWER_LETTERS, answerKey, diagnosticExamples, selectableQuestion } from './exam-questions.js';
 import { loadCatalog, loadExamQuestions, loadQuestionsById } from './trail-catalog.js';
+import { loadStudyMaterials } from './study-materials.js';
 import { contentStages, diverseSample, itemFor, planNextTrail } from './trail-planning.js';
 import { hasMaterial, recordReading, stagesWithProgress } from './trail-progress.js';
 import { recentFirst } from './trail-storage.js';
@@ -68,11 +70,11 @@ export function createTrailService(databases, questionView) {
     return loadQuestionsById(databases, ids);
   }
 
-  async function hydrate(trail, questions) {
+  async function hydrate(trail, questions, stageViews) {
     if (!trail) return null;
 
     const byId = new Map(questions.map(question => [question.id, question]));
-    const etapas = await stagesWithProgress(databases, trail);
+    const etapas = stageViews ?? await stagesWithProgress(databases, trail);
     const view = {
       ...summary(trail, etapas),
       itens: trail.itens.map(item => {
@@ -218,19 +220,22 @@ export function createTrailService(databases, questionView) {
 
   async function stage(id, stageId, userId, markRead = false) {
     const trail = await findOwned(id, userId);
-    const stage = contentStages(trail).find(row => row.id === stageId);
+    const stages = contentStages(trail);
+    const stage = stages.find(row => row.id === stageId);
     if (!stage) throw new ApiError(404, 'Conteúdo não encontrado nesta trilha.');
     if (stage.status === 'bloqueada') {
       throw new ApiError(403, 'Conclua o conteúdo anterior para liberar esta etapa.');
     }
 
-    const material = await databases.db.collection('materiais_conteudo').findOne({
-      _id: stageId,
-      publicado: true,
-    });
+    const materials = await loadStudyMaterials(databases, stages.map(row => row.id));
+    const material = materials.get(stageId);
     if (markRead) await recordReading(databases, trail, material);
 
-    const view = await hydrate(trail, await trailQuestions(trail));
+    const [questions, stageViews] = await Promise.all([
+      trailQuestions(trail),
+      stagesWithProgress(databases, trail, stages, materials),
+    ]);
+    const view = await hydrate(trail, questions, stageViews);
     const currentStage = view.etapas.find(row => row.id === stageId);
 
     return {

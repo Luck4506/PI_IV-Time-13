@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trilha/src/app.dart';
@@ -240,6 +241,12 @@ void main() {
           'id': 'REAL-01',
           'questao': 'Questão recebida da API',
           'alternativaA': 'Alternativa da API',
+          'banca': 'ENEM',
+          'ano': 2024,
+          'numero': 137,
+          'caderno': '2º dia · Caderno 7 azul',
+          'paginaProva': 16,
+          'provaUrl': 'https://example.test/caderno.pdf',
         },
       };
       Map<String, dynamic> trail() => {
@@ -295,6 +302,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Questão recebida da API'), findsOneWidget);
+      expect(find.textContaining('ENEM 2024 · Questão 137'), findsOneWidget);
+      expect(find.text('Abrir questão no caderno'), findsNothing);
       await tester.tap(find.text('A. Alternativa da API'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Confirmar resposta'));

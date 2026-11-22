@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { readConfig } from '../src/config.js';
 import { createDatabases } from '../src/databases.js';
 import { countExamQuestions } from '../src/exam-questions.js';
@@ -53,7 +54,7 @@ try {
 
   const catalogEmpty = graphOk && graph.value.questoesOficiais === 0;
   if (catalogEmpty) {
-    console.error('O Neo4j está disponível. Publique o catálogo oficial com npm run db:seed:questions.');
+    console.error('O Neo4j está disponível, mas faltam as questões com enunciado e alternativas completos. Confira o catálogo do Aura.');
   }
 
   if (!mongoOk || !graphOk || catalogEmpty) process.exitCode = 1;

@@ -1,16 +1,28 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ObjectId } from 'mongodb';
-import { diagnosticExamples } from '../src/exam-questions.js';
+import neo4j from 'neo4j-driver';
+import { diagnosticExamples, selectableQuestion } from '../src/exam-questions.js';
 import { recordReading } from '../src/trail-progress.js';
 import { planNextTrail, planQuestionCandidates, contentStages, diverseSample, schoolYearSchema, createTrailService } from '../src/trails.js';
 
 const q = (id, disciplina, topic, key = 'A') => ({ id, nome: id, disciplina,
   conteudos: [topic], origem: 'vestibular', banca: 'Prova de teste', caderno: 'Modelo A',
   ano: 2025, numero: 1, paginaProva: 2, provaUrl: 'https://example.test/prova.pdf',
-  gabaritoUrl: 'https://example.test/gabarito.pdf', gabarito: key, alternativaA: 'A', alternativaB: 'B', alternativaC: 'C', alternativaD: 'D' });
+  gabaritoUrl: 'https://example.test/gabarito.pdf', questao: 'Enunciado de teste.',
+  gabarito: key, alternativaA: 'A', alternativaB: 'B', alternativaC: 'C', alternativaD: 'D' });
 const source = entries => ({ itens: entries.map(([questaoId, correta]) => ({ questaoId, resposta: { corrigida: true, correta } })) });
 const random = () => 0.35;
+
+test('novas trilhas aceitam somente questões que podem ser respondidas no app', () => {
+  const question = q('INTEGRAL', 'Física', 'Cinemática');
+  assert.equal(selectableQuestion(question), true);
+  assert.equal(selectableQuestion({ ...question, questao: undefined }), false);
+  assert.equal(selectableQuestion({ ...question, alternativaA: 'Alternativa A' }), false);
+  assert.equal(selectableQuestion({ ...question, imagens: ['figura.png'] }), false);
+  assert.equal(selectableQuestion({ ...question, retirada: true }), false);
+});
 
 test('erros priorizam relações reais, cobrem erros distintos e excluem questões já respondidas', () => {
   const catalog = { questions: [q('ERRO1','Matemática','A'),q('ERRO2','Física','B'),
@@ -260,6 +272,65 @@ test('respostas concorrentes atualizam a mesma questão só uma vez', async () =
   assert.equal(first.trilha.respondidas, 1);
   assert.deepEqual(second.resposta, first.resposta);
   await assert.rejects(service.answer(trail._id.toString(), question.id, 'B', userId), { status: 409 });
+});
+
+test('material do Neo4j aparece em blocos e usa o progresso de leitura já salvo', async () => {
+  const question = q('Q1', 'Física', 'Cinemática');
+  const trail = {
+    _id: new ObjectId(),
+    usuarioId: new ObjectId(),
+    tipo: 'revisao',
+    itens: [{ questaoId: question.id, disciplina: question.disciplina, conteudos: question.conteudos }],
+  };
+  const [{ id: stageId }] = contentStages(trail);
+  let savedReading = { conteudoId: stageId, materialVersao: 1 };
+  const graphMaterial = {
+    id: stageId,
+    titulo: 'Cinemática',
+    versao: neo4j.int(1),
+    titulosBlocos: ['Conceito', 'Antes da prática'],
+    textosBlocos: ['Descreva o movimento.', 'Escolha um referencial.'],
+  };
+  const databases = {
+    trails: { async findOne() { return trail; } },
+    async query(cypher, { ids }) {
+      if (cypher.includes('AS material')) {
+        assert.deepEqual(ids, [stageId]);
+        return { records: [{ get: () => graphMaterial }] };
+      }
+
+      const fields = { questao: question, conteudos: question.conteudos, disciplinas: [question.disciplina] };
+      return { records: [{ get: field => fields[field] }] };
+    },
+    db: {
+      collection(name) {
+        assert.equal(name, 'progresso_conteudos');
+        return {
+          find() { return { async toArray() { return [savedReading]; } }; },
+          async updateOne(filter, update) {
+            savedReading = { conteudoId: filter.conteudoId, materialVersao: update.$max.materialVersao };
+          },
+        };
+      },
+    },
+  };
+  const service = createTrailService(databases, ({ id }) => ({ id }));
+  const openStage = markRead => service.stage(trail._id.toString(), stageId, trail.usuarioId, markRead);
+
+  const { etapa } = await openStage();
+  assert.equal(etapa.praticaDisponivel, true);
+  assert.deepEqual(etapa.material, {
+    titulo: 'Cinemática', versao: 1,
+    blocos: [
+      { titulo: 'Conceito', texto: 'Descreva o movimento.' },
+      { titulo: 'Antes da prática', texto: 'Escolha um referencial.' },
+    ],
+  });
+
+  graphMaterial.versao = neo4j.int(2);
+  assert.equal((await openStage()).etapa.praticaDisponivel, false);
+  assert.equal((await openStage(true)).etapa.praticaDisponivel, true);
+  assert.deepEqual(savedReading, { conteudoId: stageId, materialVersao: 2 });
 });
 
 test('uma confirmação de leitura atrasada preserva a versão mais recente', async () => {
