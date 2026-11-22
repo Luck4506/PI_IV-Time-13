@@ -1,9 +1,13 @@
+// Sofia de Sousa
+
 package br.com.puccampinas.trilhas;
+
 
 public class PedidoDeLogin extends Comunicado {
     private final String email;
     private final String senha;
-
+    
+    // construtor
     public PedidoDeLogin(String email, String senha) throws Exception {
 
         // parte de validação reaproveitada do PedidoDeCadastro
@@ -20,7 +24,8 @@ public class PedidoDeLogin extends Comunicado {
         this.email = email.strip();
         this.senha = senha;
     }
-
+    
+    //getters
     public String getEmail() { return this.email; }
 
     public String getSenha() { return this.senha; }
