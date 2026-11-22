@@ -1,5 +1,7 @@
 # Contrato do validador Java
 
+> Registro do fluxo anterior usado na demonstração. Para a integração atual, consulte o [contrato do servidor](docs/CONTRATO_SERVIDOR.md) e o [README do projeto](README.md).
+
 O Flutter se comunica com o Node. O Node solicita ao validador Java externo a validação do cadastro e do login em `127.0.0.1:3001` por padrão. A porta pode ser alterada em `JAVA_VALIDATOR_PORT`.
 
 Cada pedido é um objeto JSON em UTF-8 encerrado por quebra de linha. O Node espera até três segundos por uma linha de resposta com `valido` (booleano) e `mensagem` (texto).

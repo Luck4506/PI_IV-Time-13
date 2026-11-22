@@ -1,6 +1,6 @@
 # Aplicativo Gabariteii
 
-O app usa Flutter no iPhone. Na raiz do projeto, `node scripts/iniciar.mjs` inicia o Node e abre o simulador. Para executar com o validador externo, usar outro dispositivo ou mudar o endereço da API, siga a [instalação do projeto](../README.md).
+O app usa Flutter no iPhone. Com o Java em execução, `node scripts/iniciar.mjs` na raiz do projeto inicia o Node e abre o simulador. Para usar outro dispositivo ou mudar os endereços, siga a [instalação do projeto](../README.md).
 
 ## Arquivos do Flutter
 
@@ -23,10 +23,11 @@ flutter test integration_test/iphone_test.dart -d ID_DO_SIMULADOR
 
 A suíte abre o app no iPhone simulado e percorre a área do aluno e a busca nos quartis. As telas recebem dados em memória por TCP.
 
-Para incluir cadastro, login e sessão no Node, instale primeiro as dependências com `npm ci` em `backend/`. Em outro terminal, dentro de `frontend/`, rode `node integration_test/servidor_local.mjs`. Deixe o servidor aberto e use a porta que ele imprimir. A suíte usa contas em memória e simula a resposta do validador.
+Para incluir cadastro e login, instale primeiro as dependências com `npm ci` em `backend/`. Em outro terminal, dentro de `frontend/`, rode `node integration_test/servidor_local.mjs`. Deixe o servidor aberto e use as portas que ele imprimir. A suíte usa contas em memória e simula o Java, que encaminha o pedido HTTP ao Node.
 
 ```sh
-flutter test integration_test/iphone_test.dart -d ID_DO_SIMULADOR --dart-define=GABARITEII_QA_NODE_PORT=PORTA
+flutter test integration_test/iphone_test.dart -d ID_DO_SIMULADOR \
+  --dart-define=API_TCP_PORT=PORTA_NODE --dart-define=JAVA_TCP_PORT=PORTA_JAVA
 ```
 
 Rode também `flutter analyze` e `flutter test` para conferir o código e a suíte do Flutter. [Configuração da conexão com a API](docs/BACKEND.md)

@@ -6,13 +6,15 @@ O Gabariteii é um aplicativo de estudo para alunos do Ensino Médio. A trilha m
 
 ## Integração do servidor Java
 
-A `pre-final` reúne o aplicativo, o Node, os bancos e o servidor Java de cadastro e login. Use o [contrato do servidor](docs/CONTRATO_SERVIDOR.md) e o [guia de execução do Java](docs/EXECUCAO_SERVIDOR.md) para preparar o fluxo Flutter → Java → Node. A configuração descrita nas próximas seções ainda usa o fluxo anterior. A troca de protocolo e a verificação com os bancos compartilhados estão pendentes.
+O cadastro e o login seguem o fluxo Flutter → Java → Node → MongoDB. O Java recebe JSON por TCP e encaminha os pedidos válidos ao Node por HTTP. Consulte o [contrato do servidor](docs/CONTRATO_SERVIDOR.md) e o [guia de execução do Java](docs/EXECUCAO_SERVIDOR.md).
 
 ## Rodar no iPhone simulado
 
 Você vai precisar de Node.js 22 ou superior e Flutter com Dart 3.13.2 ou superior dentro da série 3. Para rodar no iPhone, use um Mac com Xcode e um simulador iOS instalado.
 
 Coloque o arquivo de configuração do grupo em `backend/.env`. Para configurar um ambiente próprio, copie [`backend/.env.example`](backend/.env.example) e preencha os dados do MongoDB, do Neo4j e do remetente de e-mail. Gere o `JWT_SECRET` do ambiente com `openssl rand -hex 32`. As credenciais ficam no backend.
+
+Inicie o servidor Java com JDK 25 conforme o guia. Use a porta TCP `3000` e a opção de JVM `-Dnode.url=http://127.0.0.1:3001`. Se você ainda estiver com o validador antigo na porta `3001`, encerre essa execução para liberar a porta HTTP do Node.
 
 Na raiz do projeto, rode:
 
@@ -22,13 +24,11 @@ node scripts/iniciar.mjs
 
 O comando instala as dependências da API quando necessário, inicia o Node e abre o Flutter no simulador. No Mac também dá para abrir **Iniciar Gabariteii.command**. No VS Code, com um simulador disponível, selecione **Gabariteii — iPhone no Device Hub** em **Executar e Depurar**.
 
-Para cadastrar e fazer login, inicie à parte o validador Java fornecido pela equipe na mesma máquina que o Node. Use a porta `JAVA_VALIDATOR_PORT` de `backend/.env`, que por padrão é `3001`. [Contrato do validador](SCHEMA_E_VALIDACAO_JAVA.md)
-
 Pressione `q` no terminal para fechar a execução do Flutter. A API continua em segundo plano e grava os registros em `.local/api-ios.log`.
 
 ## Rodar os serviços manualmente
 
-Com o arquivo `backend/.env` configurado, abra dois terminais na raiz do projeto. Os comandos usam as portas padrão.
+Com o arquivo `backend/.env` configurado, inicie o Java e use terminais separados para o Node e o Flutter. Os comandos usam as portas padrão.
 
 **API Node**
 
@@ -44,10 +44,12 @@ npm start
 cd frontend
 flutter pub get
 flutter devices
-flutter run -d ID_DO_DISPOSITIVO --dart-define=API_TCP_HOST=127.0.0.1 --dart-define=API_TCP_PORT=3002
+flutter run -d ID_DO_DISPOSITIVO \
+  --dart-define=API_TCP_HOST=127.0.0.1 --dart-define=API_TCP_PORT=3002 \
+  --dart-define=JAVA_TCP_HOST=127.0.0.1 --dart-define=JAVA_TCP_PORT=3000
 ```
 
-Use `127.0.0.1` no iPhone simulado. Para testar num iPhone físico, configure a assinatura do projeto no Xcode, coloque o iPhone e o computador do servidor na mesma rede privada e use no Flutter o IP desse computador. Em `backend/.env`, configure `TCP_HOST` com o IP local do servidor para aceitar a conexão do aparelho. No emulador Android padrão, o endereço do computador é `10.0.2.2`.
+Use `127.0.0.1` no iPhone simulado. Para testar num iPhone físico, configure a assinatura no Xcode e use o IP do computador servidor nos dois endereços do Flutter. Em `backend/.env`, configure `TCP_HOST` com esse IP. No emulador Android padrão, use `10.0.2.2` nos dois endereços e permita a conexão TCP com o Node no computador. Se mudar `AUTH_HTTP_PORT` no Node, use a mesma porta em `-Dnode.url` no Java.
 
 A conexão atual envia a senha e o token em TCP sem criptografia. Use contas de desenvolvimento em um ambiente controlado. Para disponibilizar o app pela internet, a conexão do Flutter com o servidor precisa de TLS.
 
@@ -72,13 +74,11 @@ O ranking usa respostas corrigidas na disciplina depois da matrícula. Cada alun
 ## Como as partes se comunicam
 
 ```text
-Flutter → Node.js (TCP 3002)
-             ├── Java (TCP 3001) · valida os campos do cadastro e do login
-             ├── MongoDB · guarda contas, turmas, leituras, trilhas e respostas
-             └── Neo4j · fornece questões, gabaritos e relações do catálogo
+Cadastro e login   Flutter → Java (TCP 3000) → Node (HTTP 3001) → MongoDB
+Demais operações   Flutter → Node (TCP 3002) → MongoDB e Neo4j
 ```
 
-O Flutter envia todos os pedidos ao Node. Cada mensagem é um objeto JSON em UTF-8, terminado por uma quebra de linha. O Node confere a senha da conta, gerencia a sessão e encaminha ao validador Java externo só `VALIDAR_LOGIN` e `VALIDAR_CADASTRO`. Escola, matrícula e aceite dos termos são tratados no Node. O cadastro envia `perfil` como número. [Formato dos pedidos ao Java](SCHEMA_E_VALIDACAO_JAVA.md)
+Cada mensagem TCP é um objeto JSON em UTF-8, terminado por uma quebra de linha. O Java valida `VALIDAR_LOGIN` e `VALIDAR_CADASTRO`. O Node confere credenciais, escola e matrícula, grava o aceite dos termos e emite a sessão. O Flutter usa a sessão nas demais operações, como trilhas e turmas. [Formato dos pedidos ao Java](docs/CONTRATO_SERVIDOR.md)
 
 As senhas são armazenadas no MongoDB com hash scrypt. O token fica em memória no aplicativo, então é preciso entrar novamente depois de fechar o app. Quando a confirmação por e-mail está ativa, a conta nova recebe um código. O vínculo com a escola é declarado no cadastro. [Autenticação e configuração SMTP](AUTENTICACAO.md)
 
@@ -98,7 +98,7 @@ Se o endereço do Aura não resolver, confira se a instância está ativa e se o
 
 Na pasta `backend/`, use `npm ci` e `npm test`. Na pasta `frontend/`, use `flutter pub get`, `flutter analyze` e `flutter test`.
 
-A suíte de iPhone roda no simulador com dados isolados. Ela cobre a abertura do app, a área do aluno e a busca nos quartis. O Node de teste também permite verificar cadastro, login e sessão com uma resposta simulada do validador. [Comandos para rodar no iPhone](frontend/README.md#verificar-no-iphone)
+A suíte de iPhone roda no simulador com dados isolados. Os testes do Flutter conferem as mensagens TCP de cadastro e login. Os testes do Node conferem o contrato HTTP e as regras de sessão com dados simulados. [Comandos para rodar no iPhone](frontend/README.md#verificar-no-iphone)
 
 ## Arquivos do projeto
 

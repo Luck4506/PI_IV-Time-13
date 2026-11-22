@@ -1,7 +1,7 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { z } from 'zod';
 import { ApiError } from './api-error.js';
 import { mountAccountRoutes } from './auth/account-routes.js';
-import { createJavaValidator } from './auth/java-validator.js';
 import { createSessions, role } from './auth/session.js';
 import { countExamQuestions } from './exam-questions.js';
 import { mountQuestionRoutes, questionView } from './question-routes.js';
@@ -18,7 +18,6 @@ export function createApp({
   config,
   databaseReady = () => true,
   emailOptions = {},
-  javaValidator = createJavaValidator(config.JAVA_VALIDATOR_PORT ?? 3001),
 }) {
   const app = criarRotas(respostaDeErro, path => {
     if (path.startsWith('/api/') && !databaseReady()) {
@@ -32,7 +31,7 @@ export function createApp({
   const student = role('student');
 
   mountHealthRoutes(app, databases, config, databaseReady);
-  mountAccountRoutes(app, { databases, config, sessions, classes, javaValidator, emailOptions });
+  mountAccountRoutes(app, { databases, config, sessions, classes, emailOptions });
   mountQuestionRoutes(app, auth, student, databases);
   mountClassRoutes(app, auth, databases, classes);
   mountActivityRoutes(app, auth, databases);
@@ -49,6 +48,7 @@ function mountHealthRoutes(app, databases, config, databaseReady) {
     res.json({
       status: 'ok',
       protocolo: 'trilha-tcp',
+      autenticacao: 'java-http',
       mongodb: databaseReady(),
       grafo: graphSource,
     });

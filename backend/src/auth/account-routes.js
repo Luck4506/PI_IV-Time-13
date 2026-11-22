@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { ObjectId } from 'mongodb';
 import { z } from 'zod';
 import { ApiError } from '../api-error.js';
@@ -8,15 +9,19 @@ import { emailSchema, passwordSchema, SCHOOL_YEAR_CODES, schoolYearSchema } from
 import { createEmailVerification, emailPendingCode, mountEmailVerification } from './email-verification.js';
 import { publicUser } from './session.js';
 
+const anosPorCodigo = Object.fromEntries(
+  Object.entries(SCHOOL_YEAR_CODES).map(([ano, codigo]) => [codigo, ano]),
+);
+
 const registration = z.object({
   nome: z.string().trim().min(2).max(120),
   email: emailSchema,
   senha: passwordSchema,
-  perfil: z.enum(['student', 'teacher']),
-  anoEscolar: schoolYearSchema.optional(),
-  dataNascimento: z.iso.date().optional(),
+  perfil: z.literal([1, 2]).transform(perfil => perfil === 1 ? 'student' : 'teacher'),
+  anoEscolar: z.number().int().min(0).max(3).transform(codigo => anosPorCodigo[codigo]).optional(),
+  dataNascimento: z.iso.date(),
   codProfessor: z.string().regex(/^[0-9]{4}$/).optional(),
-  cadastroEducacional: z.boolean().optional(),
+  cadastroEducacional: z.boolean(),
   codigoEscola: z.string().trim().max(80).optional(),
   codigoTurma: codeField.optional(),
   termosAceitos: z.literal(true),
@@ -24,6 +29,10 @@ const registration = z.object({
   .refine(data => data.perfil !== 'student' || Boolean(data.anoEscolar), {
     message: 'Informe o ano escolar.',
     path: ['anoEscolar'],
+  })
+  .refine(data => data.perfil !== 'teacher' || Boolean(data.codProfessor), {
+    message: 'Informe o código de professor.',
+    path: ['codProfessor'],
   })
   .refine(data => data.perfil !== 'teacher' || data.cadastroEducacional !== false, {
     message: 'O cadastro de professor é sempre educacional.',
@@ -44,8 +53,7 @@ const registration = z.object({
 
 const login = z.object({
   email: emailSchema,
-  senha: passwordSchema,
-  perfil: z.enum(['student', 'teacher']).optional(),
+  senha: z.string().min(1),
 }).strict();
 
 const profile = z.object({
@@ -53,23 +61,20 @@ const profile = z.object({
   anoEscolar: schoolYearSchema.optional(),
 }).strict().refine(data => Object.keys(data).length > 0, 'Informe um campo para atualizar.');
 
-export function mountAccountRoutes(app, { databases, config, sessions, classes, javaValidator, emailOptions }) {
+export function mountAccountRoutes(app, { databases, config, sessions, classes, emailOptions }) {
   const schools = databases.db.collection('escolas');
   const users = databases.users;
   const { authenticate, sendSession } = sessions;
-  const authLimit = limitarTentativas('Muitas tentativas. Aguarde alguns minutos.');
+  const mensagemLimite = 'Muitas tentativas. Aguarde alguns minutos.';
+  const authLimit = limitarTentativas(mensagemLimite);
+
+  // O Java abre todas as conexões HTTP do mesmo endereço. Contamos as
+  // tentativas por e-mail para uma conta não bloquear as demais da turma.
+  const limitarPorConta = limitarTentativas(mensagemLimite, req => {
+    const email = emailSchema.safeParse(req.body?.email);
+    return email.success ? email.data : req.ip;
+  });
   const verification = createEmailVerification({ databases, config, ...emailOptions });
-
-  async function validateWithJava(pedido) {
-    let result;
-    try {
-      result = await javaValidator(pedido);
-    } catch {
-      throw new ApiError(503, 'O servidor de validação está indisponível. Tente novamente.');
-    }
-
-    if (!result.valido) throw new ApiError(400, result.mensagem);
-  }
 
   async function saveRegistration(user, turma) {
     if (!turma && !verification.required) {
@@ -88,7 +93,7 @@ export function mountAccountRoutes(app, { databases, config, sessions, classes, 
 
   mountEmailVerification(app, verification, authLimit);
 
-  app.post('/api/auth/cadastro', authLimit, async (req, res) => {
+  app.post('/api/auth/cadastro', limitarPorConta, async (req, res) => {
     const data = registration.parse(req.body);
     const isTeacher = data.perfil === 'teacher';
 
@@ -98,19 +103,6 @@ export function mountAccountRoutes(app, { databases, config, sessions, classes, 
     if (isTeacher && !data.codigoEscola) {
       throw new ApiError(400, 'Selecione sua escola.');
     }
-
-    // O MongoDB guarda o nome do ano letivo. O Java recebe o código da opção.
-    await validateWithJava({
-      tipo: 'VALIDAR_CADASTRO',
-      nome: data.nome,
-      email: data.email,
-      senha: data.senha,
-      dataNascimento: data.dataNascimento,
-      perfil: isTeacher ? 2 : 1,
-      ...(isTeacher
-        ? { codProfessor: data.codProfessor }
-        : { anoEscolar: SCHOOL_YEAR_CODES[data.anoEscolar] }),
-    });
 
     if (data.codigoEscola) {
       const school = await schools.findOne({ _id: data.codigoEscola, ativa: true });
@@ -152,14 +144,13 @@ export function mountAccountRoutes(app, { databases, config, sessions, classes, 
     return sendSession(res, user, 201);
   });
 
-  app.post('/api/auth/login', authLimit, async (req, res) => {
-    const { email, senha, perfil } = login.parse(req.body);
-    await validateWithJava({ tipo: 'VALIDAR_LOGIN', email, senha });
+  app.post('/api/auth/login', limitarPorConta, async (req, res) => {
+    const { email, senha } = login.parse(req.body);
 
     const user = await users.findOne({ email });
     const validPassword = await verifyPassword(senha, user?.senhaHash ?? dummyHash);
-    if (!user || !validPassword || (perfil && user.perfil !== perfil)) {
-      throw new ApiError(401, 'E-mail, senha ou perfil incorretos.');
+    if (!user || !validPassword) {
+      throw new ApiError(401, 'E-mail ou senha incorretos.');
     }
     if (await verification.pending(user)) {
       return res.status(403).json({ codigo: emailPendingCode, erro: 'Confirme seu e-mail para entrar.' });

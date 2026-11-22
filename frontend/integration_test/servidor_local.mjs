@@ -1,9 +1,13 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { once } from 'node:events';
+import { createServer } from 'node:net';
+import { createInterface } from 'node:readline';
 import { createApp } from '../../backend/src/app.js';
+import { criarServidorAuthHttp } from '../../backend/src/auth/http.js';
 import { criarServidorTcp } from '../../backend/src/tcp-server.js';
 
-// A suíte usa as rotas do Node com contas em memória e uma resposta simulada
-// do validador. Nenhum banco nem serviço externo participa da execução.
+// As contas ficam em memória. O Java simulado recebe o JSON do iPhone e
+// encaminha por HTTP para testar as mesmas entradas do Node usadas pelo app.
 const accounts = [];
 
 function findAccount(filter) {
@@ -35,7 +39,6 @@ const app = createApp({
     JWT_SECRET: 'chave-ficticia-exclusiva-da-integracao-ios',
     EMAIL_VERIFICATION_REQUIRED: 'false',
   },
-  javaValidator: async () => ({ valido: true, mensagem: 'Validação simulada.' }),
 });
 
 const server = criarServidorTcp((request, ip) => {
@@ -45,15 +48,45 @@ const server = criarServidorTcp((request, ip) => {
   return app(request, ip);
 });
 
+const http = criarServidorAuthHttp(app);
+const java = createServer(socket => {
+  const lines = createInterface({ input: socket });
+  socket.on('error', () => lines.close());
+  lines.once('line', async line => {
+    try {
+      const { tipo, ...dados } = JSON.parse(line);
+      const cadastro = tipo === 'VALIDAR_CADASTRO';
+      if (!cadastro && tipo !== 'VALIDAR_LOGIN') throw new Error('Pedido inesperado.');
+
+      const rota = cadastro ? 'cadastro' : 'login';
+      const response = await fetch(`http://127.0.0.1:${http.address().port}/api/auth/${rota}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados),
+      });
+      const body = await response.json();
+      const codigoSucesso = cadastro ? 'CADASTRO_REALIZADO' : 'LOGIN_REALIZADO';
+      const result = response.ok
+        ? { sucesso: true, codigo: codigoSucesso, mensagem: 'Operação realizada.', dados: body }
+        : { sucesso: false, codigo: 'OPERACAO_RECUSADA', mensagem: body.erro, dados: null };
+      socket.end(`${JSON.stringify(result)}\n`);
+    } catch {
+      socket.destroy();
+    } finally {
+      lines.close();
+    }
+  });
+});
+
 try {
-  server.listen(0, '127.0.0.1');
-  await once(server, 'listening');
-  console.log(server.address().port);
+  for (const listener of [server, http, java]) {
+    listener.listen(0, '127.0.0.1');
+    await once(listener, 'listening');
+  }
+  console.log(`API_TCP_PORT=${server.address().port} JAVA_TCP_PORT=${java.address().port}`);
 
   await Promise.race([
     once(process, 'SIGINT'),
     once(process, 'SIGTERM'),
   ]);
 } finally {
-  server.close();
+  for (const listener of [server, http, java]) listener.close();
 }

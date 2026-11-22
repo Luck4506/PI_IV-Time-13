@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import 'dart:convert';
 import 'dart:io';
 
@@ -13,7 +14,8 @@ import 'apoio_ios.dart';
 
 const email = 'conta@example.test';
 const password = 'SenhaTeste123!';
-const isolatedNodePort = int.fromEnvironment('GABARITEII_QA_NODE_PORT');
+const isolatedNodePort = int.fromEnvironment('API_TCP_PORT');
+const isolatedJavaPort = int.fromEnvironment('JAVA_TCP_PORT');
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -89,7 +91,7 @@ void main() {
     await waitFor(tester, find.text('Começar diagnóstico'));
     await tap(tester, find.text('Perfil'));
     await tap(tester, find.text('Sair'));
-    await waitFor(tester, find.text('Que bom ter você de volta'));
+    await waitFor(tester, find.text('Que bom ver você de volta!'));
 
     final login = requests.singleWhere(
       (request) => request.path == '/api/auth/login',
@@ -130,41 +132,42 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  if (isolatedNodePort > 0) {
-    testWidgets('iPhone cadastra e autentica pelo Node isolado', (
-      tester,
-    ) async {
-      const client = TcpClient('127.0.0.1', isolatedNodePort);
+  if (isolatedNodePort > 0 && isolatedJavaPort > 0) {
+    testWidgets(
+      'iPhone cadastra pelo Java simulado e autentica pelo Node isolado',
+      (tester) async {
+        const client = TcpClient('127.0.0.1', isolatedNodePort);
 
-      // Confirme o ambiente isolado antes de criar uma conta.
-      final health = await client.send(const TcpRequest('GET', '/health/qa'));
-      expect(health.status, 200);
-      expect(health.body, {'modo': 'memoria', 'validador': 'simulado'});
+        // Confirme o ambiente isolado antes de criar uma conta.
+        final health = await client.send(const TcpRequest('GET', '/health/qa'));
+        expect(health.status, 200);
+        expect(health.body, {'modo': 'memoria', 'validador': 'simulado'});
 
-      final api = ApiService(send: client.send);
-      final registration = await api.register(
-        name: 'João de Ávila',
-        email: email,
-        password: password,
-        role: 'student',
-        schoolField: 'Outro',
-        birthDate: '2009-08-15',
-      );
-      expect(registration.user?.name, 'João de Ávila');
-      expect(registration.user?.schoolYear, 'Outro');
+        final api = ApiService();
+        final registration = await api.register(
+          name: 'João de Ávila',
+          email: email,
+          password: password,
+          role: 'student',
+          schoolField: 'Outro',
+          birthDate: '2009-08-15',
+        );
+        expect(registration.user?.name, 'João de Ávila');
+        expect(registration.user?.schoolYear, 'Outro');
 
-      await api.logout();
-      expect(api.user, isNull);
-      final loggedIn = await api.login(
-        email: email,
-        password: password,
-        role: 'student',
-      );
-      expect(loggedIn.id, registration.user?.id);
-      await api.restoreSession();
-      expect(api.user?.name, 'João de Ávila');
-      await api.logout();
-      expect(api.user, isNull);
-    });
+        await api.logout();
+        expect(api.user, isNull);
+        final loggedIn = await api.login(
+          email: email,
+          password: password,
+          role: 'student',
+        );
+        expect(loggedIn.id, registration.user?.id);
+        await api.restoreSession();
+        expect(api.user?.name, 'João de Ávila');
+        await api.logout();
+        expect(api.user, isNull);
+      },
+    );
   }
 }

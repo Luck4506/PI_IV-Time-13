@@ -1,4 +1,6 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { createServer } from 'node:net';
+import { rotaDeAutenticacao } from './auth/http.js';
 import { criarLeitorDeLinha, LimiteDeMensagemError, limitePedido, limiteResposta } from './tcp-line.js';
 
 const tempoConexao = 20_000;
@@ -78,7 +80,15 @@ export function atenderConexao(socket, atender) {
 }
 
 export function criarServidorTcp(atender) {
+  const atenderTcp = (pedido, ip) => {
+    if (pedido?.metodo === 'POST' && typeof pedido.caminho === 'string' && rotaDeAutenticacao(pedido.caminho)) {
+      return { status: 404, corpo: { erro: 'Use o servidor Java para entrar ou se cadastrar.' } };
+    }
+
+    return atender(pedido, ip);
+  };
+
   // O cliente pode encerrar somente o envio e continuar lendo. Mantemos a
   // outra metade da conexão aberta até terminar de escrever a resposta.
-  return createServer({ allowHalfOpen: true }, socket => atenderConexao(socket, atender));
+  return createServer({ allowHalfOpen: true }, socket => atenderConexao(socket, atenderTcp));
 }

@@ -1,6 +1,6 @@
 # Backend do Gabariteii
 
-A API em Node.js recebe os pedidos do Flutter, autentica a conta e consulta os bancos. O cadastro e o login dependem do validador Java fornecido à parte. Para iniciar a API e abrir o aplicativo, siga o [README principal](../README.md).
+A API em Node.js autentica a conta e consulta os bancos. Cadastro e login chegam por HTTP do Java. As demais operações chegam por TCP do Flutter. Para iniciar a API e abrir o aplicativo, siga o [README principal](../README.md).
 
 ## Protocolo TCP
 
@@ -13,7 +13,13 @@ A API escuta em `127.0.0.1:3002` por padrão. O aplicativo abre uma conexão TCP
 | `dados` | Objeto com os campos do pedido, quando a rota usa corpo |
 | `token` | Token de sessão nas rotas privadas |
 
-A resposta usa `status` numérico e `corpo` como objeto. O logout retorna status `204` com `corpo` vazio. O Node se conecta ao Java em `127.0.0.1:3001` usando [o formato do validador](../SCHEMA_E_VALIDACAO_JAVA.md).
+A resposta usa `status` numérico e `corpo` como objeto. O logout retorna status `204` com `corpo` vazio.
+
+## Autenticação HTTP
+
+O Node recebe `POST /api/auth/cadastro` e `POST /api/auth/login` em `127.0.0.1:3001`. Use `AUTH_HTTP_PORT` no Node e `-Dnode.url` no Java para trocar a porta. O Java envia `perfil` e `anoEscolar` numéricos. O Node converte os valores para os formatos usados nas contas já existentes.
+
+Uma sessão é devolvida com `201` no cadastro ou `200` no login. O Java repassa o campo `erro` das recusas `409` e `401`. Quando a conta precisa confirmar o e-mail, a mensagem inclui um código que permite ao Flutter abrir a tela de confirmação sem receber token de sessão. [Contrato do Java](../docs/CONTRATO_SERVIDOR.md)
 
 ## Rotas da API
 
@@ -24,14 +30,14 @@ A resposta usa `status` numérico e `corpo` como objeto. O logout retorna status
 | GET | `/health/live` | Verificar se o processo Node está em execução |
 | GET | `/health/ready` | Conferir os bancos e a presença do catálogo oficial |
 | GET | `/api/escolas` | Listar as escolas ativas disponíveis no cadastro |
-| POST | `/api/auth/cadastro` | Criar a conta e retornar sessão ou confirmação pendente |
-| POST | `/api/auth/login` | Entrar usando e-mail e senha |
+| POST | `/api/auth/cadastro` | Criar a conta e retornar sessão ou confirmação pendente via HTTP do Java |
+| POST | `/api/auth/login` | Entrar usando e-mail e senha via HTTP do Java |
 | POST | `/api/auth/reenviar-confirmacao` | Solicitar outro código de confirmação |
-| POST | `/api/auth/confirmar-email` | Validar o código de confirmação e abrir a sessão |
+| POST | `/api/auth/confirmar-email` | Validar o código de confirmação para liberar o próximo login |
 | GET, PATCH | `/api/usuarios/me` | Consultar a própria conta ou atualizar os campos permitidos |
 | POST | `/api/auth/logout` | Invalidar os tokens da conta |
 
-O cadastro recebe `nome`, `email`, `senha`, `perfil` (`student` ou `teacher`), `dataNascimento` e `termosAceitos`. Para aluno, envie `anoEscolar` com o texto da opção escolhida no app. O cadastro educacional acrescenta `cadastroEducacional` e `codigoEscola`. O aluno pode informar `codigoTurma`, e o professor envia `codProfessor`. Se houver código de turma, conta e matrícula são gravadas na mesma transação. [Fluxo de autenticação](../AUTENTICACAO.md)
+O cadastro inclui `nome`, `email`, `senha`, `perfil`, `dataNascimento`, `cadastroEducacional` e `termosAceitos`. Para aluno, o ano vai como `0` a `3`. O código da escola acompanha o vínculo educacional. O aluno pode informar `codigoTurma`, e o professor envia `codProfessor`. Se houver código de turma, conta e matrícula são gravadas na mesma transação. [Fluxo de autenticação](../AUTENTICACAO.md)
 
 ### Questões e trilhas
 
@@ -79,7 +85,7 @@ Rode os comandos na pasta `backend/`.
 
 | Comando | O que verifica |
 | --- | --- |
-| `npm test` | Regras do backend, rotas TCP e campos enviados ao validador |
+| `npm test` | Regras do backend, rotas TCP e contrato HTTP de autenticação |
 | `npm run db:check` | Conexão com os bancos e presença do catálogo |
 | `npm run db:inventory` | Estrutura dos bancos configurados |
 | `npm run db:audit` | Catálogo, relações, materiais e referências gravadas |

@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { z } from 'zod';
 
 const port = z.coerce.number().int().min(1).max(65535);
@@ -6,7 +7,7 @@ const booleanText = z.enum(['true', 'false']);
 const configSchema = z.object({
   TCP_HOST: z.string().trim().min(1).default('127.0.0.1'),
   TCP_PORT: port.default(3002),
-  JAVA_VALIDATOR_PORT: port.default(3001),
+  AUTH_HTTP_PORT: port.default(3001),
 
   MONGODB_URI: z.string().regex(/^mongodb(?:\+srv)?:\/\//),
   MONGODB_DATABASE: z.string().default('trilha'),

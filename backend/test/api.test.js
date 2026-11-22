@@ -1,10 +1,13 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { Duplex } from 'node:stream';
-import { atenderConexao } from '../src/tcp-server.js';
+import { atenderConexao, criarServidorTcp } from '../src/tcp-server.js';
 import { createApp } from '../src/app.js';
+import { criarServidorAuthHttp } from '../src/auth/http.js';
 import { ensureCollection } from '../src/mongo-collections.js';
+import { enviarPedidoTcp } from '../src/tcp-client.js';
 import jwt from 'jsonwebtoken';
 
 function fixture() {
@@ -130,7 +133,6 @@ async function withServer(_t, callback, extraConfig = {}, options = {}) {
       ALLOW_TEACHER_REGISTRATION: 'false',
       ...extraConfig,
     },
-    javaValidator: async () => ({ valido: true, mensagem: 'Campos válidos.' }),
     ...options,
   });
   const call = async (path, { token, method = 'GET', body } = {}) => {
@@ -138,11 +140,14 @@ async function withServer(_t, callback, extraConfig = {}, options = {}) {
     const { status, corpo } = await enviarEmMemoria(atender, [Buffer.from(linha)]);
     return { status, data: corpo };
   };
-  await callback({ ...data, call });
+  await callback({ ...data, call, atender });
 }
 
 const registration = { nome: 'Estudante Teste', email: 'TESTE@example.com', senha: 'SenhaTeste123!',
-  perfil: 'student', anoEscolar: '3º ano', termosAceitos: true };
+  perfil: 1, anoEscolar: 3, dataNascimento: '2009-08-15', cadastroEducacional: false, termosAceitos: true };
+
+const teacherRegistration = { ...registration, perfil: 2, anoEscolar: undefined,
+  codProfessor: '0123', codigoEscola: 'ESCOLA-DEMO-001', cadastroEducacional: true };
 
 test('cadastro, login, perfil e logout revogam a sessão e protegem senha', async t => withServer(t, async ({ call, rows }) => {
   const register = await call('/api/auth/cadastro', { method: 'POST', body: registration });
@@ -152,7 +157,7 @@ test('cadastro, login, perfil e logout revogam a sessão e protegem senha', asyn
   assert.equal(rows[0].senha, undefined);
   assert.equal(register.data.usuario.senhaHash, undefined);
   assert.equal((await call('/api/auth/login', { method: 'POST', body: { email: 'teste@example.com', senha: 'errada123' } })).status, 401);
-  const login = await call('/api/auth/login', { method: 'POST', body: { email: 'teste@example.com', senha: registration.senha, perfil: 'student' } });
+  const login = await call('/api/auth/login', { method: 'POST', body: { email: 'teste@example.com', senha: registration.senha } });
   assert.equal(login.status, 200);
   const token = login.data.token;
   assert.equal((await call('/api/usuarios/me', { token })).data.usuario.nome, registration.nome);
@@ -191,12 +196,12 @@ test('valida termos, ano escolar e autorização para professor', async t => wit
   for (const body of [{ ...registration, termosAceitos: false }, { ...registration, anoEscolar: undefined }]) {
     assert.equal((await call('/api/auth/cadastro', { method: 'POST', body })).status, 400);
   }
-  assert.equal((await call('/api/auth/cadastro', { method: 'POST', body: { ...registration, perfil: 'teacher' } })).status, 403);
+  assert.equal((await call('/api/auth/cadastro', { method: 'POST', body: teacherRegistration })).status, 403);
   assert.equal(rows.length, 0);
 }));
 test('cadastro rejeita séries fora da lista e preserva o acesso de conta antiga', async t =>
   withServer(t, async ({ call, rows }) => {
-    for (const anoEscolar of ['6º ano do Ensino Fundamental', 0]) {
+    for (const anoEscolar of ['6º ano do Ensino Fundamental', '0', -1, 4]) {
       const rejected = await call('/api/auth/cadastro', {
         method: 'POST', body: { ...registration, anoEscolar },
       });
@@ -247,7 +252,7 @@ test('listagem diferencia escolas da demonstração para o cadastro final', asyn
   ]);
 }));
 test('professor é sempre educacional, sem ampliar permissões por escolher escola', async t => withServer(t, async ({ call, rows }) => {
-  const teacher = { ...registration, perfil: 'teacher', codigoEscola: 'ESCOLA-DEMO-001' };
+  const teacher = teacherRegistration;
   assert.equal((await call('/api/auth/cadastro', { method: 'POST', body: {
     ...teacher, codigoEscola: undefined,
   } })).status, 400);
@@ -456,50 +461,94 @@ test('inicialização aceita uma coleção criada por outra instância', async (
   assert.deepEqual(await ensureCollection(db, 'usuarios'), { name: 'usuarios', options: {} });
 });
 
-test('Node envia perfil e ano escolar como números e delega somente cadastro e login ao Java', async t => {
-  const pedidos = [];
+test('Node recebe perfil e ano como números e mantém o formato dos usuários no banco', async t => {
   await withServer(t, async ({ call, rows }) => {
     const opcoes = [
-      { escolha: '1º ano', codigo: 1, salvo: '1º ano do Ensino Médio' },
-      { escolha: '2º ano', codigo: 2, salvo: '2º ano do Ensino Médio' },
-      { escolha: '3º ano', codigo: 3, salvo: '3º ano do Ensino Médio' },
-      { escolha: 'Outro', codigo: 0, salvo: 'Outro' },
+      { codigo: 1, salvo: '1º ano do Ensino Médio' },
+      { codigo: 2, salvo: '2º ano do Ensino Médio' },
+      { codigo: 3, salvo: '3º ano do Ensino Médio' },
+      { codigo: 0, salvo: 'Outro' },
     ];
-    for (const { escolha, codigo, salvo } of opcoes) {
+    for (const { codigo, salvo } of opcoes) {
       const email = `ano${codigo}@example.com`;
       assert.equal((await call('/api/auth/cadastro', { method: 'POST', body: {
-        ...registration, email, anoEscolar: escolha, dataNascimento: '2009-08-15',
+        ...registration, email, anoEscolar: codigo,
       } })).status, 201);
-      assert.equal(pedidos.at(-1).tipo, 'VALIDAR_CADASTRO');
-      assert.equal(pedidos.at(-1).perfil, 1);
-      assert.equal(pedidos.at(-1).anoEscolar, codigo);
       assert.equal(rows.at(-1).perfil, 'student');
       assert.equal(rows.at(-1).anoEscolar, salvo);
     }
 
     const professor = await call('/api/auth/cadastro', { method: 'POST', body: {
-      nome: 'Professor Teste', email: 'professor@example.com', senha: registration.senha,
-      perfil: 'teacher', dataNascimento: '3000-01-01', codProfessor: '0123',
-      codigoEscola: 'ESCOLA-DEMO-001', termosAceitos: true,
+      ...teacherRegistration, nome: 'Professor Teste', email: 'professor@example.com',
+      dataNascimento: '3000-01-01',
     } });
     assert.equal(professor.status, 201);
-    assert.deepEqual(pedidos.at(-1), {
-      tipo: 'VALIDAR_CADASTRO', nome: 'Professor Teste', email: 'professor@example.com',
-      senha: registration.senha, dataNascimento: '3000-01-01', perfil: 2, codProfessor: '0123',
-    });
     assert.equal(rows.at(-1).perfil, 'teacher');
 
     const login = await call('/api/auth/login', { method: 'POST', body: {
       email: rows[0].email, senha: registration.senha,
     } });
     assert.equal(login.status, 200);
-    assert.deepEqual(pedidos.at(-1), {
-      tipo: 'VALIDAR_LOGIN', email: rows[0].email, senha: registration.senha,
-    });
     assert.equal((await call('/api/questoes', { token: login.data.token })).status, 200);
-    assert.equal(pedidos.length, 6);
-  }, { ALLOW_TEACHER_REGISTRATION: 'true' }, { javaValidator: async pedido => {
-    pedidos.push(pedido);
-    return { valido: true };
-  } });
+  }, { ALLOW_TEACHER_REGISTRATION: 'true' });
+});
+
+async function portaLocal(t, server) {
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  return server.address().port;
+}
+
+test('HTTP atende o contrato Java e o TCP do Node bloqueia cadastro e login diretos', async t => {
+  await withServer(t, async ({ atender, rows }) => {
+    const httpPort = await portaLocal(t, criarServidorAuthHttp(atender));
+    const tcpPort = await portaLocal(t, criarServidorTcp(atender));
+    const url = `http://127.0.0.1:${httpPort}`;
+    const post = (caminho, dados) => fetch(url + caminho, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados),
+    });
+    const tcp = (metodo, caminho, dados, token) => enviarPedidoTcp(
+      { metodo, caminho, dados, token }, { host: '127.0.0.1', port: tcpPort },
+    );
+
+    for (const rota of ['cadastro', 'login']) {
+      assert.equal((await tcp('POST', `/api/auth/${rota}/?x=1`, registration)).status, 404);
+    }
+    assert.equal(rows.length, 0);
+    assert.equal((await post('/api/usuarios/me', {})).status, 404);
+
+    const created = await post('/api/auth/cadastro', registration);
+    assert.equal(created.status, 201);
+    const session = await created.json();
+    assert.equal(session.usuario.anoEscolar, '3º ano do Ensino Médio');
+    assert.equal((await tcp('GET', '/api/usuarios/me', undefined, session.token)).status, 200);
+    assert.equal((await post('/api/auth/cadastro', registration)).status, 409);
+
+    const login = senha => post('/api/auth/login', { email: registration.email, senha });
+    assert.equal((await login('errada')).status, 401);
+    const authenticated = await login(registration.senha);
+    assert.equal(authenticated.status, 200);
+    assert.equal((await authenticated.json()).usuario.id, session.usuario.id);
+  });
+});
+
+test('HTTP sinaliza confirmação pendente no campo que o Java devolve ao Flutter', async t => {
+  await withServer(t, async ({ atender, rows }) => {
+    const port = await portaLocal(t, criarServidorAuthHttp(atender));
+    const post = (rota, dados) => fetch(`http://127.0.0.1:${port}/api/auth/${rota}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados),
+    });
+
+    const created = await post('cadastro', registration);
+    assert.equal(created.status, 409);
+    assert.deepEqual(await created.json(), { erro: '[EMAIL_CONFIRMACAO_ENVIADA] Confirme seu e-mail para continuar.' });
+    assert.equal(rows.length, 1);
+
+    const login = await post('login', { email: registration.email, senha: registration.senha });
+    assert.equal(login.status, 401);
+    assert.deepEqual(await login.json(), { erro: '[EMAIL_NAO_CONFIRMADO] Confirme seu e-mail para entrar.' });
+  }, { EMAIL_VERIFICATION_REQUIRED: 'true' }, { emailOptions: { sendMail: async () => {} } });
 });

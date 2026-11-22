@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -19,6 +20,10 @@ class TcpResponse {
   final int status;
 }
 
+class TcpRequestTooLarge implements Exception {
+  const TcpRequestTooLarge();
+}
+
 class TcpClient {
   const TcpClient(this.host, this.port);
 
@@ -37,10 +42,27 @@ class TcpClient {
       if (request.token != null) 'token': request.token,
       if (request.data != null) 'dados': request.data,
     };
-    final bytes = utf8.encode('${jsonEncode(pedido)}\n');
+    try {
+      final data = await sendJson(pedido);
+      final status = data['status'];
+      final body = data['corpo'];
+      if (status is! int ||
+          status < 200 ||
+          status > 599 ||
+          body is! Map<String, dynamic>) {
+        throw const FormatException('Resposta TCP inválida.');
+      }
 
-    if (bytes.length - 1 > _requestLimit) {
+      return TcpResponse(body, status);
+    } on TcpRequestTooLarge {
       return const TcpResponse({'erro': 'Pedido muito grande.'}, 413);
+    }
+  }
+
+  Future<Map<String, dynamic>> sendJson(Map<String, dynamic> pedido) async {
+    final bytes = utf8.encode('${jsonEncode(pedido)}\n');
+    if (bytes.length - 1 > _requestLimit) {
+      throw const TcpRequestTooLarge();
     }
 
     final socket = await Socket.connect(
@@ -61,16 +83,7 @@ class TcpClient {
         throw const FormatException('Resposta TCP inválida.');
       }
 
-      final status = data['status'];
-      final body = data['corpo'];
-      if (status is! int ||
-          status < 200 ||
-          status > 599 ||
-          body is! Map<String, dynamic>) {
-        throw const FormatException('Resposta TCP inválida.');
-      }
-
-      return TcpResponse(body, status);
+      return data;
     } finally {
       socket.destroy();
     }

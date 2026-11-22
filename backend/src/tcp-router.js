@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 const metodos = ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'];
 
 function objetoJson(valor) {
@@ -130,7 +131,7 @@ export function criarRotas(tratarErro, antesDeAtender = () => {}) {
   };
 }
 
-export function limitarTentativas(mensagem) {
+export function limitarTentativas(mensagem, identificar = req => req.ip) {
   const tentativas = new Map();
   const intervalo = 15 * 60 * 1000;
   let proximaLimpeza = 0;
@@ -139,17 +140,17 @@ export function limitarTentativas(mensagem) {
     const agora = Date.now();
 
     if (agora >= proximaLimpeza) {
-      for (const [ip, dados] of tentativas) {
-        if (dados.expiraEm <= agora) tentativas.delete(ip);
+      for (const [chave, dados] of tentativas) {
+        if (dados.expiraEm <= agora) tentativas.delete(chave);
       }
       proximaLimpeza = agora + intervalo;
     }
 
-    // O IP é lido do socket e é o mesmo em pedidos de rotas diferentes.
-    let dados = tentativas.get(req.ip);
+    const chave = identificar(req);
+    let dados = tentativas.get(chave);
     if (!dados || dados.expiraEm <= agora) {
       dados = { total: 0, expiraEm: agora + intervalo };
-      tentativas.set(req.ip, dados);
+      tentativas.set(chave, dados);
     }
 
     dados.total++;

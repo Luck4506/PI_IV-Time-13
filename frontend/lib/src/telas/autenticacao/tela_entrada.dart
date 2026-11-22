@@ -167,7 +167,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextFormField(
                     controller: passwordController,
                     enabled: !loading,
-                    validator: validatePassword,
+                    validator: (value) =>
+                        (value ?? '').isEmpty ? 'Informe sua senha.' : null,
                     obscureText: hidePassword,
                     decoration: InputDecoration(
                       hintText: 'Digite sua senha',

@@ -1,9 +1,11 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import 'java_auth_client.dart';
 import 'tcp_client.dart';
 
 class ApiException implements Exception {
@@ -68,12 +70,31 @@ class AppUser {
 
 class ApiService extends ChangeNotifier {
   ApiService({Future<TcpResponse> Function(TcpRequest)? send})
-    : _send =
-          send ??
-          const TcpClient(
-            String.fromEnvironment('API_TCP_HOST', defaultValue: '127.0.0.1'),
-            int.fromEnvironment('API_TCP_PORT', defaultValue: 3002),
-          ).send;
+    : _send = send ?? _sendByRoute;
+
+  static const _nodeHost = String.fromEnvironment(
+    'API_TCP_HOST',
+    defaultValue: '127.0.0.1',
+  );
+  static const _node = TcpClient(
+    _nodeHost,
+    int.fromEnvironment('API_TCP_PORT', defaultValue: 3002),
+  );
+  static const _java = JavaAuthClient(
+    TcpClient(
+      String.fromEnvironment('JAVA_TCP_HOST', defaultValue: _nodeHost),
+      int.fromEnvironment('JAVA_TCP_PORT', defaultValue: 3000),
+    ),
+  );
+
+  static Future<TcpResponse> _sendByRoute(TcpRequest request) {
+    if (request.method == 'POST' &&
+        (request.path == JavaAuthClient.loginPath ||
+            request.path == JavaAuthClient.registrationPath)) {
+      return _java.send(request);
+    }
+    return _node.send(request);
+  }
 
   static ApiService instance = ApiService();
 
@@ -219,11 +240,12 @@ class ApiService extends ChangeNotifier {
     required String role,
   }) async {
     return _saveSession(
-      await request('POST', '/api/auth/login', {
+      await request('POST', JavaAuthClient.loginPath, {
         'email': email,
         'senha': password,
         'perfil': role,
       }),
+      expectedRole: role,
     );
   }
 
@@ -239,7 +261,7 @@ class ApiService extends ChangeNotifier {
     String? classCode,
     String? teacherCode,
   }) async {
-    final data = await request('POST', '/api/auth/cadastro', {
+    final data = await request('POST', JavaAuthClient.registrationPath, {
       'nome': name,
       'email': email,
       'senha': password,
@@ -261,7 +283,7 @@ class ApiService extends ChangeNotifier {
     if (data['verificacaoPendente'] == true) {
       return RegistrationResult(emailSent: data['emailEnviado'] == true);
     }
-    return RegistrationResult(user: _saveSession(data));
+    return RegistrationResult(user: _saveSession(data, expectedRole: role));
   }
 
   Future<void> resendConfirmation(String email, String password) async {
@@ -278,9 +300,12 @@ class ApiService extends ChangeNotifier {
     });
   }
 
-  AppUser _saveSession(Map<String, dynamic> data) {
+  AppUser _saveSession(Map<String, dynamic> data, {String? expectedRole}) {
     final nextUser = _sessionUser(data);
-    if (data['token'] is! String || (data['token'] as String).isEmpty) {
+    if (expectedRole != null && nextUser.role != expectedRole) {
+      throw const ApiException('Selecione o perfil da sua conta para entrar.');
+    }
+    if (data['token'] is! String || (data['token'] as String).trim().isEmpty) {
       throw const ApiException(
         'O serviço retornou uma sessão inválida. Tente novamente.',
       );
