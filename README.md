@@ -4,6 +4,10 @@ Projeto Integrador IV · Time 13
 
 O Gabariteii é um aplicativo de estudo para alunos do Ensino Médio. A trilha muda de acordo com as respostas do aluno. O professor acompanha o desempenho da turma na própria disciplina.
 
+## Integração do servidor Java
+
+A `pre-final` reúne o aplicativo, o Node, os bancos e o servidor Java de cadastro e login. Use o [contrato do servidor](docs/CONTRATO_SERVIDOR.md) e o [guia de execução do Java](docs/EXECUCAO_SERVIDOR.md) para preparar o fluxo Flutter → Java → Node. A configuração descrita nas próximas seções ainda usa o fluxo anterior. A troca de protocolo e a verificação com os bancos compartilhados estão pendentes.
+
 ## Rodar no iPhone simulado
 
 Você vai precisar de Node.js 22 ou superior e Flutter com Dart 3.13.2 ou superior dentro da série 3. Para rodar no iPhone, use um Mac com Xcode e um simulador iOS instalado.

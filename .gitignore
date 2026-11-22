@@ -61,6 +61,8 @@ Thumbs.db
 node_modules/
 coverage/
 *.class
+/target/
+/out/
 /frontend/.dart_tool/
 /frontend/build
 /frontend/.flutter-plugins*
