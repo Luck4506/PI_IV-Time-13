@@ -94,16 +94,19 @@ class _LoginScreenState extends State<LoginScreen> {
                 children: [
                   const AppMark(compact: true),
                   const SizedBox(height: 30),
+
                   Text(
-                    'Que bom ter você de volta',
+                    'Que bom ver você de volta!',
                     style: Theme.of(context).textTheme.headlineLarge,
                   ),
                   const SizedBox(height: 8),
+
                   Text(
                     'Entre com o e-mail e a senha da sua conta.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 26),
+
                   SegmentedButton<UserRole>(
                     segments: const [
                       ButtonSegment(
@@ -132,12 +135,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 26),
+
                   const Text(
                     'E-mail',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 8),
+
                   TextFormField(
                     key: ValueKey('email-${role.name}'),
                     validator: validateEmail,
@@ -149,12 +155,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       prefixIcon: Icon(Icons.mail_outline_rounded),
                     ),
                   ),
+
                   const SizedBox(height: 18),
+
                   const Text(
                     'Senha',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 8),
+
                   TextFormField(
                     controller: passwordController,
                     enabled: !loading,
@@ -174,7 +183,24 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
+
+                  // Esqueci minha senha - Sofia de Sousa
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Recuperação de senha em breve!'),
+                          ),
+                        );
+                      },
+                      child: const Text('Esqueci minha senha'),
+                    ),
+                  ),
+
                   const SizedBox(height: 26),
+
                   if (error != null) ...[
                     Text(
                       error!,
@@ -184,12 +210,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 12),
                   ],
+
                   FilledButton(
                     key: const Key('login-button'),
                     onPressed: loading ? null : _continue,
                     child: Text(loading ? 'Entrando…' : 'Entrar'),
                   ),
+
                   const SizedBox(height: 14),
+
                   Center(
                     child: TextButton(
                       onPressed: () => Navigator.pushNamed(

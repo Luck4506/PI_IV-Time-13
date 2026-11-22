@@ -34,7 +34,7 @@ void main() {
     await tester.pumpWidget(const TrilhaApp());
     await tester.pumpAndSettle();
     expect(find.text('Olá, Conta!'), findsOneWidget);
-    expect(find.text('Que bom ter você de volta'), findsNothing);
+    expect(find.text('Que bom ver você de volta!'), findsNothing);
     expect(restores, 1);
     expect(ApiService.instance.user?.id, 'u1');
   });
@@ -49,7 +49,7 @@ void main() {
     );
     await tester.pumpWidget(const TrilhaApp());
     await tester.pumpAndSettle();
-    expect(find.text('Que bom ter você de volta'), findsOneWidget);
+    expect(find.text('Que bom ver você de volta!'), findsOneWidget);
     expect(find.text('Olá, Conta!'), findsNothing);
   });
 
@@ -89,7 +89,7 @@ void main() {
       throwsA(isA<ApiException>()),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Que bom ter você de volta'), findsOneWidget);
+    expect(find.text('Que bom ver você de volta!'), findsOneWidget);
     expect(find.text('Olá, Conta!'), findsNothing);
     expect(
       Navigator.of(tester.element(find.byKey(const Key('login-button'))))

@@ -23,7 +23,7 @@ void main() {
 
   testWidgets('inicia no login e rejeita e-mail inválido', (tester) async {
     await start(tester);
-    final heading = find.text('Que bom ter você de volta');
+    final heading = find.text('Que bom ver você de volta!');
     expect(heading, findsOneWidget);
     expect(find.text('Gabariteii'), findsOneWidget);
     expect(
@@ -65,7 +65,7 @@ void main() {
     await tap(tester, find.byType(BackButton));
     await tap(tester, find.text('Perfil'));
     await tap(tester, find.text('Sair'));
-    expect(find.text('Que bom ter você de volta'), findsOneWidget);
+    expect(find.text('Que bom ver você de volta!'), findsOneWidget);
     expect(
       Navigator.of(tester.element(find.byKey(const Key('login-button'))))
           .canPop(),

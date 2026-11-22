@@ -128,7 +128,7 @@ void main() {
       await tester.tap(find.text('Entrar'));
       await tester.pumpAndSettle();
       expect(find.text('E-mail, senha ou perfil incorretos.'), findsOneWidget);
-      expect(find.text('Que bom ter você de volta'), findsOneWidget);
+      expect(find.text('Que bom ver você de volta!'), findsOneWidget);
       expect(ApiService.instance.user, isNull);
     },
   );
