@@ -1,10 +1,10 @@
-// Sofia de Sousa
+// Autoria de Sofia de Sousa RA 25005435
 
 package br.com.puccampinas.trilhas;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 // Verifica formato, presença e normalização dos campos; não autentica contas.
 public class PedidoDeLoginTest {

@@ -1,12 +1,19 @@
+// Autoria de Henrique RA 25005651
+
 package br.com.puccampinas.trilhas;
-import org.junit.jupiter.api.Test;
-import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.net.http.HttpResponse;
-import static org.junit.jupiter.api.Assertions.*;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+
+import com.sun.net.httpserver.HttpServer;
 
 // Verifica transporte HTTP e interpretação das respostas usando um Node simulado localmente.
 public class ClienteNodeTest {

@@ -1,21 +1,29 @@
+// Autoria de Henrique RA 25005651
+
 package br.com.puccampinas.trilhas;
-import org.junit.jupiter.api.Test;
-import com.sun.net.httpserver.HttpServer;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-import java.net.URI;
-import java.util.concurrent.atomic.AtomicReference;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.InetAddress;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.io.BufferedWriter;
-import java.io.BufferedReader;
-import java.io.OutputStreamWriter;
-import java.io.InputStreamReader;
-import static org.junit.jupiter.api.Assertions.*;
-import com.google.gson.JsonParser;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.sun.net.httpserver.HttpServer;
 
 // Integra TCP e HTTP locais com Node simulado; não acessa Flutter nem bancos reais.
 public class SupervisoraDeConexaoTest {

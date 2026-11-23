@@ -1,6 +1,8 @@
+// Autoria de Henrique RA 25005651 e Arthur Valerio De Santi RA 25006924
+
 package br.com.puccampinas.trilhas;
-import java.net.http.HttpResponse;
 import java.io.IOException;
+import java.net.http.HttpResponse;
 
 // Encaminha o cadastro já validado e traduz falhas de comunicação para a resposta da operação.
 public class ServicoCadastro {

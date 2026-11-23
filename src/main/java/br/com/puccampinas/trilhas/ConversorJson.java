@@ -1,12 +1,13 @@
-// Sofia de Sousa e Henrique Young
+// Autoria de Sofia de Sousa RA 25005435 e Henrique Young 25005651
 
 package br.com.puccampinas.trilhas;
-import com.google.gson.Gson;
-import com.google.gson.JsonParser;
-import com.google.gson.JsonObject;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+
+import com.google.gson.Gson;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 
 // Lê cadastro e login do protocolo TCP; os pedidos validam as regras dos campos.

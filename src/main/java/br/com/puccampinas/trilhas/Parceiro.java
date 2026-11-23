@@ -1,9 +1,11 @@
+// Autoria de Henrique RA 25005651 com base nos videos do professor Andre
+
 package br.com.puccampinas.trilhas;
 
-import java.io.*;
-import java.net.*;
-import java.rmi.server.ExportException;
-import java.util.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.net.Socket;
 import java.util.concurrent.Semaphore;
 
 public class Parceiro {

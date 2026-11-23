@@ -1,4 +1,4 @@
-// Sofia de Sousa
+// Autoria de Sofia de Sousa RA 25005435
 
 package br.com.puccampinas.trilhas;
 

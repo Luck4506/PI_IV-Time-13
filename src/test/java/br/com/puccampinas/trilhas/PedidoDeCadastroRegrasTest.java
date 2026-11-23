@@ -1,8 +1,12 @@
+// Autoria Arthur Valerio De Santi RA 25006924
+
 package br.com.puccampinas.trilhas;
 
-import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
 import java.time.LocalDate;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import org.junit.jupiter.api.Test;
 
 // Complementa PedidoDeCadastroTest: limites de data, ano escolar, código do professor e senha.
 // Em cada cenário de rejeição, só o campo testado é inválido; os demais seguem válidos.

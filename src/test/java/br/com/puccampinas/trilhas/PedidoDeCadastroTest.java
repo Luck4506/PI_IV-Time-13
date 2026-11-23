@@ -1,9 +1,14 @@
-// Henrique Young e Sofia de Sousa
+// Autoria de Sofia de Sousa RA 25005435 e Henrique Young 25005651
 
 package br.com.puccampinas.trilhas;
-import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
 import java.time.LocalDate;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 // Cada cenário INVALIDO altera apenas um campo e confere a mensagem recebida.
 public class PedidoDeCadastroTest {

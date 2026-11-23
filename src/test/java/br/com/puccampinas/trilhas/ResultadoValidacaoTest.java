@@ -1,6 +1,10 @@
+// Autoria de Henrique RA 25005651
+
 package br.com.puccampinas.trilhas;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
 
 // Confere o resultado de validação isolado, sem representar uma operação concluída no Node.
 public class ResultadoValidacaoTest {

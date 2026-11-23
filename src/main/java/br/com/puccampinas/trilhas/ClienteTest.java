@@ -1,7 +1,12 @@
+// Autoria de Henrique RA 25005651
+
 package br.com.puccampinas.trilhas;
 
-import java.io.*;
-import java.net.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
 public class ClienteTest {

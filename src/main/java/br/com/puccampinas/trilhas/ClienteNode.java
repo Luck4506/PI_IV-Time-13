@@ -1,9 +1,11 @@
+// Autoria de Henrique RA 25005651
+
 package br.com.puccampinas.trilhas;
 import java.net.URI;
 import java.net.http.HttpClient;
-import java.time.Duration;
-import java.net.http.HttpResponse;
 import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 
 // Encaminha operações ao Node.js por HTTP, sem acessar os bancos diretamente.
 public class ClienteNode {

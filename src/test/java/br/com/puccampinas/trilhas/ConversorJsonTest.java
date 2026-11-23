@@ -1,12 +1,17 @@
-// Sofia de Sousa e Henrique Young
+// Autoria de Sofia de Sousa RA 25005435 e Henrique Young 25005651
 
 package br.com.puccampinas.trilhas;
-import com.google.gson.JsonParser;
-import com.google.gson.JsonObject;
-import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
 import java.time.LocalDate;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+
 import com.google.gson.JsonNull;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 // Verifica leitura dos pedidos, tipos JSON e rejeições antes do encaminhamento ao Node.
 public class ConversorJsonTest {

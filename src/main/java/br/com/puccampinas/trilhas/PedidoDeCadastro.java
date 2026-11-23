@@ -1,3 +1,5 @@
+// Autoria de Henrique RA 25005651 e Arthur Valerio De Santi RA 25006924
+
 package br.com.puccampinas.trilhas;
 
 import static br.com.puccampinas.trilhas.Perfil.ESTUDANTE;
