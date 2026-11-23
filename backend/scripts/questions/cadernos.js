@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 export const cadernos = {
   enem1: {
     code: "ENEM", board: "ENEM", year: 2024, version: "D1-AZUL",

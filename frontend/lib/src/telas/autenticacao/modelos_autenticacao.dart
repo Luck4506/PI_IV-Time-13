@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 part of '../../telas_autenticacao.dart';
 
 enum UserRole { student, teacher }

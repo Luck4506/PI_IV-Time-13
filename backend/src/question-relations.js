@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 const similarityWeights = {
   PARECIDA_COM: 100,
   MESMO_RACIOCINIO: 80,

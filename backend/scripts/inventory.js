@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { readConfig } from '../src/config.js';
 import { createDatabases } from '../src/databases.js';
 const databases = createDatabases(readConfig());

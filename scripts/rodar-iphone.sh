@@ -1,4 +1,5 @@
 #!/bin/bash
+# Autoria de Lucas Soares Gonçalves RA 25009467
 set -euo pipefail
 
 # Resolve paths from this file, including when the repository contains spaces.

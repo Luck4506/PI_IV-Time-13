@@ -1,113 +1,129 @@
 # Gabariteii
 
-Projeto Integrador IV · Time 13
+Projeto Integrador IV da PUC-Campinas · Time 13
 
-O Gabariteii é um aplicativo de estudo para alunos do Ensino Médio. A trilha muda de acordo com as respostas do aluno. O professor acompanha o desempenho da turma na própria disciplina.
+O Gabariteii é um aplicativo de estudo para o Ensino Médio que oferece questões de vestibular, materiais didáticos e trilhas adaptadas às respostas dos alunos. Os professores podem criar turmas e acompanhar o desempenho por disciplina, tópico e quartil.
 
-## Integração do servidor Java
+## Integrantes
 
-O cadastro e o login seguem o fluxo Flutter → Java → Node → MongoDB. O Java recebe JSON por TCP e encaminha os pedidos válidos ao Node por HTTP. Consulte o [contrato do servidor](docs/CONTRATO_SERVIDOR.md) e o [guia de execução do Java](docs/EXECUCAO_SERVIDOR.md).
+| Nome | RA |
+| --- | --- |
+| Arthur Valerio de Santi | 25006924 |
+| Henrique Young de Azevedo | 25005651 |
+| Lucas Soares Gonçalves | 25009467 |
+| Marcus Vinicius Martins Pulini | 25009605 |
+| Sofia de Sousa | 25005435 |
 
-## Rodar no iPhone simulado
+## Tecnologias
 
-Você vai precisar de Node.js 22 ou superior e Flutter com Dart 3.13.2 ou superior dentro da série 3. Para rodar no iPhone, use um Mac com Xcode e um simulador iOS instalado.
+Flutter e Dart no aplicativo, Java 25 e Maven no servidor de cadastro e login, Node.js na API, MongoDB Atlas para contas e progresso, Neo4j Aura para o catálogo e Nodemailer com Gmail para envio de e-mail.
 
-Coloque o arquivo de configuração do grupo em `backend/.env`. Para configurar um ambiente próprio, copie [`backend/.env.example`](backend/.env.example) e preencha os dados do MongoDB, do Neo4j e do remetente de e-mail. Gere o `JWT_SECRET` do ambiente com `openssl rand -hex 32`. As credenciais ficam no backend.
+## Estrutura do repositório
 
-Inicie o servidor Java com JDK 25 conforme o guia. Use a porta TCP `3000` e a opção de JVM `-Dnode.url=http://127.0.0.1:3001`. Se você ainda estiver com o validador antigo na porta `3001`, encerre essa execução para liberar a porta HTTP do Node.
-
-Na raiz do projeto, rode:
-
-```sh
-node scripts/iniciar.mjs
+```text
+.
+├── .idea/, .vscode/         configurações dos editores
+├── backend/
+│   ├── src/                 API TCP e HTTP, autenticação, trilhas e turmas
+│   ├── scripts/             manutenção e auditoria dos bancos
+│   └── test/                testes da API
+├── docs/                    dicionário de dados e contrato do servidor
+├── frontend/
+│   ├── lib/                 telas e serviços Flutter
+│   ├── assets/              imagens do aplicativo
+│   ├── test/                testes de telas e serviços
+│   ├── integration_test/    testes em simulador
+│   └── android/, ios/, linux/, macos/, web/, windows/
+│                            arquivos de plataforma do Flutter
+├── scripts/                 atalhos de desenvolvimento
+├── src/
+│   ├── main/java/           servidor Java
+│   └── test/java/           testes do servidor Java
+├── Iniciar Gabariteii.command
+└── pom.xml                  dependências e compilação do Java
 ```
 
-O comando instala as dependências da API quando necessário, inicia o Node e abre o Flutter no simulador. No Mac também dá para abrir **Iniciar Gabariteii.command**. No VS Code, com um simulador disponível, selecione **Gabariteii — iPhone no Device Hub** em **Executar e Depurar**.
+## Como rodar
 
-Pressione `q` no terminal para fechar a execução do Flutter. A API continua em segundo plano e grava os registros em `.local/api-ios.log`.
+### Pré-requisitos
 
-## Rodar os serviços manualmente
+- Node.js 22 ou superior com npm.
+- JDK 25 e Maven. O comando `mvn -v` deve indicar que o Maven está utilizando a JDK 25.
+- Flutter SDK com Dart 3.13.2 ou superior na série 3.
+- Emulador Android configurado no Android Studio ou simulador iOS no macOS com Xcode.
+- Conexão com a internet e acesso ao repositório privado pelo GitHub.
 
-Com o arquivo `backend/.env` configurado, inicie o Java e use terminais separados para o Node e o Flutter. Os comandos usam as portas padrão.
+### 1. Baixar e extrair o ZIP
 
-**API Node**
+1. Na página do Release da entrega, localize a seção **Assets** e baixe **Source code (zip)**.
+2. Extraia todo o conteúdo do arquivo ZIP e abra um terminal na pasta extraída que contém `pom.xml` e os diretórios `backend/` e `frontend/`. Essa é a **raiz do projeto** usada nas próximas etapas.
+3. Verifique a presença de `backend/.env`, arquivo de configuração do MongoDB Atlas, do Neo4j Aura e do Gmail do projeto. O sistema pode ocultar arquivos cujo nome começa com ponto.
+
+### 2. Iniciar a API Node.js
+
+Na raiz do projeto, execute os comandos abaixo:
 
 ```sh
 cd backend
 npm ci
+npm run db:check
 npm start
 ```
 
-**Aplicativo Flutter**
+O comando `npm run db:check` verifica a conexão com os dois bancos e a disponibilidade do catálogo. Mantenha a API em execução. Se o Atlas recusar a conexão em outra rede, verifique se o IP público dessa rede está autorizado no projeto Atlas.
+
+### 3. Iniciar o servidor Java
+
+Abra outro terminal na raiz do projeto e execute:
+
+```sh
+mvn -q compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java "-Dexec.mainClass=br.com.puccampinas.trilhas.Servidor" "-Dexec.args=3000" "-Dnode.url=http://127.0.0.1:3001"
+```
+
+Como alternativa, no IntelliJ, abra o `pom.xml`, selecione a JDK 25 e execute `br.com.puccampinas.trilhas.Servidor` com o argumento `3000` e a opção de JVM `-Dnode.url=http://127.0.0.1:3001`. Mantenha o servidor em execução durante o uso do aplicativo.
+
+### 4. Executar o aplicativo Flutter
+
+Inicie o emulador ou simulador. Em um terceiro terminal, na raiz do projeto, execute:
 
 ```sh
 cd frontend
 flutter pub get
 flutter devices
-flutter run -d ID_DO_DISPOSITIVO \
-  --dart-define=API_TCP_HOST=127.0.0.1 --dart-define=API_TCP_PORT=3002 \
-  --dart-define=JAVA_TCP_HOST=127.0.0.1 --dart-define=JAVA_TCP_PORT=3000
 ```
 
-Use `127.0.0.1` no iPhone simulado. Para testar num iPhone físico, configure a assinatura no Xcode e use o IP do computador servidor nos dois endereços do Flutter. Em `backend/.env`, configure `TCP_HOST` com esse IP. No emulador Android padrão, use `10.0.2.2` nos dois endereços e permita a conexão TCP com o Node no computador. Se mudar `AUTH_HTTP_PORT` no Node, use a mesma porta em `-Dnode.url` no Java.
+Substitua `ID_DO_DISPOSITIVO` pelo identificador exibido por `flutter devices`.
 
-A conexão atual envia a senha e o token em TCP sem criptografia. Use contas de desenvolvimento em um ambiente controlado. Para disponibilizar o app pela internet, a conexão do Flutter com o servidor precisa de TLS.
-
-## Como usar o aplicativo
-
-### Aluno
-
-Crie a conta com nome, e-mail, senha, data de nascimento e ano escolar. A lista vai do 1º ao 3º ano do Ensino Médio e inclui **Outro**. Se ativar o cadastro educacional, escolha uma escola ativa. O código da turma pode ser informado no cadastro ou depois, em **Perfil → Minha turma**. Cada aluno pode estar em uma turma por vez.
-
-Em **Trilha**, comece pelo diagnóstico ou escolha **Praticar por disciplina**. A trilha recomenda primeiro conteúdos em que houve dificuldade. Quando o aluno acerta tudo, ela propõe assuntos diferentes para continuar o estudo. Nas etapas com material publicado, conclua a leitura antes da prática. A próxima etapa é liberada quando a anterior estiver concluída.
-
-Leia o enunciado e marque a alternativa na própria tela da questão. O app identifica a banca, o ano e o caderno para consulta da fonte. Respostas e leituras ficam salvas. As telas de progresso, conquistas e notificações usam o histórico da conta.
-
-### Professor
-
-O cadastro do professor inclui escola e código de professor. Na aba **Turmas**, escolha sua disciplina e crie uma turma. Compartilhe o código de matrícula com os alunos. Quem criou a turma pode renovar o código e gerar um convite de uso único, válido por 24 horas, para outro professor.
-
-Abra uma turma em **Turmas** ou **Relatórios** para ver o painel de quartis. Os cartões mostram cada aluno e seu aproveitamento na disciplina. Use **Buscar aluno por nome** ou toque em um aluno para ver o desempenho por conteúdo.
-
-O ranking usa respostas corrigidas na disciplina depois da matrícula. Cada aluno precisa ter respondido pelo menos cinco questões distintas, e a turma precisa ter ao menos quatro alunos que atinjam esse mínimo. Empates ficam juntos. O painel também mostra alunos sem respostas e alunos abaixo do mínimo.
-
-## Como as partes se comunicam
-
-```text
-Cadastro e login   Flutter → Java (TCP 3000) → Node (HTTP 3001) → MongoDB
-Demais operações   Flutter → Node (TCP 3002) → MongoDB e Neo4j
-```
-
-Cada mensagem TCP é um objeto JSON em UTF-8, terminado por uma quebra de linha. O Java valida `VALIDAR_LOGIN` e `VALIDAR_CADASTRO`. O Node confere credenciais, escola e matrícula, grava o aceite dos termos e emite a sessão. O Flutter usa a sessão nas demais operações, como trilhas e turmas. [Formato dos pedidos ao Java](docs/CONTRATO_SERVIDOR.md)
-
-As senhas são armazenadas no MongoDB com hash scrypt. O token fica em memória no aplicativo, então é preciso entrar novamente depois de fechar o app. Quando a confirmação por e-mail está ativa, a conta nova recebe um código. O vínculo com a escola é declarado no cadastro. [Autenticação e configuração SMTP](AUTENTICACAO.md)
-
-No login, informe o e-mail e a senha. O aplicativo abre a área de aluno ou de professor pelo perfil da conta devolvido pelo Node. O formulário de cadastro continua pedindo o perfil da nova conta.
-
-## Bancos e catálogo
-
-Os bancos compartilhados do grupo são MongoDB Atlas e Neo4j Aura. O catálogo ativo no Aura guarda o enunciado, as alternativas, o gabarito e os vínculos de conteúdo de cada questão. O Neo4j precisa estar disponível para carregar questões e iniciar diagnósticos ou práticas.
-
-Para conferir as conexões e o catálogo sem abrir o aplicativo, rode na raiz:
+**Emulador Android**
 
 ```sh
-node scripts/iniciar.mjs --check
+flutter run -d ID_DO_DISPOSITIVO --dart-define=JAVA_TCP_HOST=10.0.2.2 --dart-define=JAVA_TCP_PORT=3000 --dart-define=API_TCP_HOST=10.0.2.2 --dart-define=API_TCP_PORT=3002
 ```
 
-Se o endereço do Aura não resolver, confira se a instância está ativa e se o endereço em `backend/.env` está correto. Também é possível usar uma instância local de Neo4j. [Configuração dos bancos e publicação do catálogo](CONFIGURACAO_DOS_BANCOS.md)
+**Simulador iOS**
 
-## Verificar o código
+```sh
+flutter run -d ID_DO_DISPOSITIVO --dart-define=JAVA_TCP_HOST=127.0.0.1 --dart-define=JAVA_TCP_PORT=3000 --dart-define=API_TCP_HOST=127.0.0.1 --dart-define=API_TCP_PORT=3002
+```
 
-Na pasta `backend/`, use `npm ci` e `npm test`. Na pasta `frontend/`, use `flutter pub get`, `flutter analyze` e `flutter test`.
+### 5. Utilizar a aplicação
 
-A suíte de iPhone roda no simulador com dados isolados. Os testes do Flutter conferem as mensagens TCP de cadastro e login. Os testes do Node conferem o contrato HTTP e as regras de sessão com dados simulados. [Comandos para rodar no iPhone](frontend/README.md#verificar-no-iphone)
+Utilize um endereço de e-mail ao qual tenha acesso. O Gabariteii envia os códigos de confirmação de cadastro e recuperação de senha pelo Gmail do projeto. Após confirmar o endereço, acesse a aplicação pela tela de login. Para cadastrar um professor, selecione uma escola ativa e informe um código de quatro dígitos, como `1234`.
 
-## Arquivos do projeto
+- **Aluno** · abra **Trilha** para iniciar um diagnóstico ou praticar por disciplina. As questões vêm do Neo4j Aura. Respostas e leituras são salvas no MongoDB Atlas.
+- **Professor** · escolha sua disciplina, crie uma turma e compartilhe o código de matrícula. Abra **Turmas** ou **Relatórios** para acompanhar os alunos já matriculados.
 
-| Caminho | Conteúdo |
+Para encerrar, digite `q` no terminal do Flutter e `desativar` no console do Java. Interrompa o Node com `Ctrl+C`. Os dados persistem nos serviços em nuvem.
+
+## Testes e documentação
+
+| Comando | Diretório |
 | --- | --- |
-| [`frontend/`](frontend/README.md) | Aplicativo Flutter, assets e testes |
-| [`backend/`](backend/README.md) | Protocolo TCP, rotas e acesso aos bancos |
-| [`scripts/`](scripts/) | Inicialização do ambiente e preparação do iPhone |
+| `mvn test` | Raiz |
+| `npm test` | `backend/` |
+| `flutter analyze` e `flutter test` | `frontend/` |
 
-O Git guarda código, assets, testes, configurações compartilhadas e arquivos de dependências. O [`.gitignore`](.gitignore) deixa de fora credenciais, certificados privados, cópias dos bancos, arquivos de compilação e registros locais.
+Cadastro e login passam do Flutter ao Java em TCP `3000`, e o Java encaminha essas operações ao Node em HTTP `3001`. O Flutter envia as outras operações ao Node em TCP `3002`. A API consulta o Atlas e o Aura.
+
+- [Dicionário de dados do MongoDB](docs/DICIONARIO_DE_DADOS.md)
+- [Contrato do servidor Java](docs/CONTRATO_SERVIDOR.md)

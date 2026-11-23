@@ -1,6 +1,6 @@
 # Contrato de cadastro e login
 
-Contrato do servidor Java para integração com o Flutter móvel e o Node. Descreve o comportamento implementado; a integração com Node e bancos reais ainda precisa ser verificada em conjunto.
+Contrato de cadastro e login usado pelo Flutter, pelo servidor Java e pelo Node. Para iniciar os serviços e testar a integração, siga o [README do projeto](../README.md#como-rodar).
 
 ```text
 Flutter → TCP/JSON por linha → Java → HTTP/JSON → Node → bancos

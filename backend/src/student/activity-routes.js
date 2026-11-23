@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { role } from '../auth/session.js';
 import { summarizeActivity } from './activity.js';
 

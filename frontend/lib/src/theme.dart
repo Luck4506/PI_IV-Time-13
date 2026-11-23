@@ -1,3 +1,5 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
+// Com contribuições de Sofia de Sousa.
 import 'package:flutter/material.dart';
 
 const appName = 'Gabariteii';

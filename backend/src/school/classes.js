@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { createHash, randomBytes } from 'node:crypto';
 import { ObjectId } from 'mongodb';
 import { ApiError } from '../api-error.js';

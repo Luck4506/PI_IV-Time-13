@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 export const limitePedido = 64 * 1024;
 export const limiteResposta = 8 * 1024 * 1024;
 

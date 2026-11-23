@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import net from 'node:net';

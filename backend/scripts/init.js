@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { MongoClient } from 'mongodb';
 import { initializeMongo } from '../src/databases.js';
 if (!process.env.MONGODB_URI) throw new Error('MONGODB_URI ausente.');

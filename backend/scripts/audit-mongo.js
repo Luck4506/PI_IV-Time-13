@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import assert from 'node:assert/strict';
 import { userValidator } from '../src/databases.js';
 import { contentId } from '../src/trail-planning.js';

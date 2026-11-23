@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';

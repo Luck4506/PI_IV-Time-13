@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { accuracy } from '../school/quartiles.js';
 
 const dayFormat = new Intl.DateTimeFormat('pt-BR', {

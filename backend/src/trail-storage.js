@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { ANSWER_LETTERS } from './exam-questions.js';
 import { ensureCollection } from './mongo-collections.js';
 

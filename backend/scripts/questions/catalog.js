@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import assert from 'node:assert/strict';
 import { examOrigin } from '../../src/exam-questions.js';
 import { cadernos } from './cadernos.js';

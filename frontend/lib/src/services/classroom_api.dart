@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import 'api_service.dart';
 
 class Classroom {

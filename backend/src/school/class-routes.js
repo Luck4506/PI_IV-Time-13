@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { z } from 'zod';
 import { limitarTentativas } from '../tcp-router.js';
 import { role } from '../auth/session.js';

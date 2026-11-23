@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { createConnection } from 'node:net';
 import { criarLeitorDeLinha, LimiteDeMensagemError, limiteResposta } from './tcp-line.js';
 

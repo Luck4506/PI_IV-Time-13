@@ -136,7 +136,7 @@ const respostaJava = await enviarPedidoTcp(
   { tipo: 'VALIDAR_LOGIN', email: 'invalido', senha: 'teste' }, destinoJava,
 ).catch(() => null);
 if (respostaJava?.codigo !== 'VALIDACAO_INVALIDA') {
-  throw new Error(`Inicie o Java em ${destinoJava.host}:${destinoJava.port} conforme docs/EXECUCAO_SERVIDOR.md.`);
+  throw new Error(`Inicie o Java em ${destinoJava.host}:${destinoJava.port}. Consulte a seção "Como rodar" do README.md.`);
 }
 
 let processoNode;

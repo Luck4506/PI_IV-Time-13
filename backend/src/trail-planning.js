@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { createHash, randomInt } from 'node:crypto';
 import { answerKey, selectableQuestion } from './exam-questions.js';
 import { compareToMissed, edgesByQuestion } from './question-relations.js';

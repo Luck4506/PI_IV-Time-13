@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 const labels = [
   'Q1 · Menor desempenho',
   'Q2 · Faixa intermediária inferior',

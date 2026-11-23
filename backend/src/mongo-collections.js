@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 export async function ensureCollection(db, name, options) {
   const filter = { name };
   const existing = await db.listCollections(filter).next();

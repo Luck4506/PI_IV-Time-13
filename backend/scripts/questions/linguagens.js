@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 // Cada referência traz o caderno, o número, a página do PDF, o gabarito e a dificuldade.
 // Os níveis 1 a 3 são uma classificação pedagógica do Trilha.
 export const linguagens = [

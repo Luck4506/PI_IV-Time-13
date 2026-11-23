@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { summarizeActivity } from '../src/student/activity.js';

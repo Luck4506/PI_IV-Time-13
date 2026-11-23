@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import { ApiError } from '../api-error.js';
 import { ObjectId } from 'mongodb';
 import { classView } from './classes.js';

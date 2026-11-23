@@ -4,6 +4,8 @@
 *.env
 *.env.*
 !.env.example
+# Arquivo da instalação compartilhada na entrega privada do projeto.
+!/backend/.env
 .npmrc
 *.p8
 *.p12
