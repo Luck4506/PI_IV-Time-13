@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trilha/src/graph_quiz_screen.dart';
@@ -7,6 +8,115 @@ import 'package:trilha/src/telas_autenticacao.dart';
 import 'package:trilha/src/user_trail_view.dart';
 
 void main() {
+  testWidgets('nova prática começa pelo material e mantém a disciplina', (
+    tester,
+  ) async {
+    final requests = <Map<String, dynamic>>[];
+    ApiService.instance = ApiService(
+      send: (request) async {
+        if (request.path.startsWith('/api/trilhas/atual')) {
+          return TcpResponse({'trilha': null}, 200);
+        }
+        if (request.method == 'POST') {
+          requests.add(request.data!);
+          if (requests.length == 2) {
+            return const TcpResponse({'erro': 'Tente novamente.'}, 503);
+          }
+          if (requests.length == 3) {
+            return TcpResponse({
+              'trilha': {'id': 'nova-pratica'},
+            }, 201);
+          }
+        }
+        return TcpResponse({
+          'trilha': {
+            'id': 'pratica-antiga',
+            'tipo': 'pratica',
+            'itens': [
+              {
+                'questaoId': 'Q1',
+                'disciplina': 'Matemática',
+                'questao': {
+                  'questao': 'Enunciado antigo',
+                  'alternativaA': 'Alternativa A',
+                  'alternativaB': 'Alternativa B',
+                },
+              },
+            ],
+          },
+        }, 200);
+      },
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: const GraphQuizScreen(diagnostic: false),
+        routes: {
+          '/aluno/trilha': (context) => Scaffold(
+            body: Text(
+              'Material: ${ModalRoute.of(context)!.settings.arguments}',
+            ),
+          ),
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('A. Alternativa A'), findsNothing);
+    await tester.tap(find.text('Iniciar nova atividade'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tente novamente.'), findsOneWidget);
+
+    await tester.tap(find.text('Iniciar nova atividade'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Material: nova-pratica'), findsOneWidget);
+    expect(requests.last['chave'], isNot(requests.first['chave']));
+    expect(requests.last['chave'], requests[1]['chave']);
+    expect(requests.last['tipo'], 'pratica');
+    expect(requests.last['disciplina'], 'Matemática');
+  });
+
+  testWidgets('questão retirada do catálogo permite trocar de diagnóstico', (
+    tester,
+  ) async {
+    ApiService.instance = ApiService(
+      send: (request) async {
+        final old = request.path.endsWith('/antigo');
+        return TcpResponse({
+          'trilha': {
+            'id': old ? 'antigo' : 'novo',
+            'tipo': 'diagnostico',
+            'itens': [
+              {
+                'questaoId': 'Q1',
+                'disciplina': 'Matemática',
+                'questao': old
+                    ? null
+                    : {
+                        'questao': 'Qual é o resultado de 2 + 2?',
+                        'alternativaA': '3',
+                        'alternativaB': '4',
+                      },
+              },
+            ],
+          },
+        }, 200);
+      },
+    );
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: GraphQuizScreen(trailId: 'antigo', diagnostic: true),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Recarregar'), findsOneWidget);
+    await tester.tap(find.text('Iniciar nova atividade'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Diagnóstico inicial'), findsOneWidget);
+    expect(find.text('Qual é o resultado de 2 + 2?'), findsOneWidget);
+  });
+
   testWidgets(
     'erro só recebe destaque após salvar, com correta e incorreta identificadas',
     (tester) async {
@@ -134,6 +244,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Revisar · 1 erro'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'Revisar: 1 erro\b')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

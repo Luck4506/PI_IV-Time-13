@@ -26,6 +26,9 @@ void main() {
     await start(tester);
     final heading = find.text('Que bom ver você de volta!');
     expect(heading, findsOneWidget);
+    await tap(tester, find.byTooltip('Mostrar senha'));
+    expect(find.byTooltip('Ocultar senha'), findsOneWidget);
+    await tap(tester, find.byTooltip('Ocultar senha'));
     expect(find.text('Gabariteii'), findsOneWidget);
     expect(
       find.image(const AssetImage('assets/images/gabariteii_logo.png')),

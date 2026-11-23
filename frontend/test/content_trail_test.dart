@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -177,6 +178,7 @@ void main() {
             'id': 'Q1',
             'questao': 'Questão do conteúdo',
             'alternativaA': 'Resposta adequada',
+            'alternativaB': 'Resposta incompatível com o enunciado',
           },
         },
       ],

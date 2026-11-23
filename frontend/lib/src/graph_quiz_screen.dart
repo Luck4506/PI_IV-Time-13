@@ -21,6 +21,7 @@ class GraphQuizScreen extends StatefulWidget {
 
 class _GraphQuizScreenState extends State<GraphQuizScreen> {
   final startKey = ApiService.requestKey();
+  final replacementKey = ApiService.requestKey();
   final feedbackAnchor = GlobalKey();
   Map<String, dynamic>? trail;
   Map<String, dynamic>? nextTrail;
@@ -152,9 +153,16 @@ class _GraphQuizScreenState extends State<GraphQuizScreen> {
 
     try {
       final diagnostic = trail?['tipo'] == 'diagnostico';
+      final subjects = (trail?['itens'] as List? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map((item) => item['disciplina'])
+          .whereType<String>()
+          .where((name) => name.trim().isNotEmpty)
+          .toSet();
       final data = await ApiService.instance.startTrail(
         diagnostic: diagnostic,
-        key: startKey,
+        key: replacementKey,
+        subject: !diagnostic && subjects.length == 1 ? subjects.single : null,
       );
       final id = (data['trilha'] as Map?)?['id'];
       if (id is! String) {
@@ -163,10 +171,16 @@ class _GraphQuizScreenState extends State<GraphQuizScreen> {
         );
       }
       if (!mounted) return;
+
+      // A prática começa no mapa, onde a leitura libera as questões da etapa.
+      if (!diagnostic) {
+        Navigator.pushReplacementNamed(context, '/aluno/trilha', arguments: id);
+        return;
+      }
       Navigator.pushReplacement(
         context,
         MaterialPageRoute<void>(
-          builder: (_) => GraphQuizScreen(trailId: id, diagnostic: diagnostic),
+          builder: (_) => GraphQuizScreen(trailId: id, diagnostic: true),
         ),
       );
     } on ApiException catch (e) {
@@ -356,6 +370,22 @@ class _GraphQuizScreenState extends State<GraphQuizScreen> {
     final question = item['questao'] as Map<String, dynamic>?;
     final statement = question?['questao'] ?? question?['enunciado'];
     final images = question?['imagens'];
+    final alternatives = <String, String>{};
+    for (final letter in ['A', 'B', 'C', 'D', 'E']) {
+      final text = question?['alternativa$letter'];
+      if (text is String && text.trim().isNotEmpty) {
+        alternatives[letter] = text;
+      }
+    }
+    final placeholder = RegExp(r'^alternativa [a-e]$', caseSensitive: false);
+    final unavailable =
+        question == null ||
+        statement is! String ||
+        statement.trim().isEmpty ||
+        (images is List && images.isNotEmpty) ||
+        alternatives.length < 2 ||
+        alternatives.values.any((text) => placeholder.hasMatch(text.trim()));
+
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 760),
@@ -368,17 +398,17 @@ class _GraphQuizScreenState extends State<GraphQuizScreen> {
             ),
             const SizedBox(height: 6),
             const SizedBox(height: 12),
-            if (question == null) ...[
-              const Text(
-                'Esta questão não está disponível no momento. Sua trilha está salva.',
+            if (unavailable) ...[
+              Text(
+                question == null
+                    ? 'Esta questão não está disponível no momento. Sua trilha está salva.'
+                    : 'Esta questão antiga ainda não pode ser respondida na tela. Suas respostas anteriores estão salvas.',
               ),
-              TextButton(onPressed: _load, child: const Text('Recarregar')),
-            ] else if (statement is! String ||
-                statement.trim().isEmpty ||
-                images is List && images.isNotEmpty) ...[
-              const Text(
-                'Esta questão antiga ainda não pode ser respondida na tela. Suas respostas anteriores estão salvas.',
-              ),
+              if (question == null)
+                TextButton(
+                  onPressed: submitting ? null : _load,
+                  child: const Text('Recarregar'),
+                ),
               FilledButton(
                 onPressed: submitting ? null : _startWithCompleteQuestions,
                 child: Text(
@@ -390,18 +420,18 @@ class _GraphQuizScreenState extends State<GraphQuizScreen> {
               ExamQuestionSource(question: question),
               Text(statement, style: Theme.of(context).textTheme.bodyLarge),
               const SizedBox(height: 20),
-              for (final letter in ['A', 'B', 'C', 'D', 'E'])
-                if (question['alternativa$letter'] != null)
-                  QuizAnswerOption(
-                    letter: letter,
-                    label: '$letter. ${question['alternativa$letter']}',
-                    selected: selected == letter,
-                    correct: result?['gabarito'] == letter,
-                    wrong: result?['correta'] == false && selected == letter,
-                    onPressed: result != null || submitting
-                        ? null
-                        : () => setState(() => selected = letter),
-                  ),
+              for (final MapEntry(key: letter, value: label)
+                  in alternatives.entries)
+                QuizAnswerOption(
+                  letter: letter,
+                  label: '$letter. $label',
+                  selected: selected == letter,
+                  correct: result?['gabarito'] == letter,
+                  wrong: result?['correta'] == false && selected == letter,
+                  onPressed: result != null || submitting
+                      ? null
+                      : () => setState(() => selected = letter),
+                ),
               if (error != null)
                 Text(
                   error!,

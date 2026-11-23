@@ -157,6 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       hintText: 'Digite sua senha',
                       prefixIcon: const Icon(Icons.lock_outline_rounded),
                       suffixIcon: IconButton(
+                        tooltip: hidePassword ? 'Mostrar senha' : 'Ocultar senha',
                         onPressed: () =>
                             setState(() => hidePassword = !hidePassword),
                         icon: Icon(

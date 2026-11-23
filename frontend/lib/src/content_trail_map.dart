@@ -1,3 +1,4 @@
+// Autoria de Lucas Soares Gonçalves RA 25009467
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -61,6 +62,7 @@ class _ContentNode extends StatelessWidget {
     final done = stage['status'] == 'concluida';
     final errors = (stage['erros'] as int?) ?? 0;
     final review = errors > 0 && !locked;
+    final errorCountLabel = errors == 1 ? '1 erro' : '$errors erros';
     final color = review
         ? const Color(0xFFB54708)
         : done
@@ -77,7 +79,7 @@ class _ContentNode extends StatelessWidget {
       button: true,
       enabled: !locked,
       label:
-          'Etapa $number: ${stage['nome']}. $label${review ? '. Revisar: $errors erros' : ''}',
+          'Etapa $number: ${stage['nome']}. $label${review ? '. Revisar: $errorCountLabel' : ''}',
       child: Tooltip(
         message: stage['nome'] as String,
         child: InkWell(
@@ -152,7 +154,7 @@ class _ContentNode extends StatelessWidget {
                   locked
                       ? label
                       : review
-                      ? 'Revisar · $errors ${errors == 1 ? 'erro' : 'erros'}'
+                      ? 'Revisar · $errorCountLabel'
                       : done
                       ? 'Etapa concluída'
                       : 'Material + prática',

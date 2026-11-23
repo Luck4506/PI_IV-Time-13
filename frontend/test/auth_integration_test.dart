@@ -300,6 +300,7 @@ void main() {
           'id': 'REAL-01',
           'questao': 'Questão recebida da API',
           'alternativaA': 'Alternativa da API',
+          'alternativaB': 'Outra resposta da API',
           'banca': 'ENEM',
           'ano': 2024,
           'numero': 137,
