@@ -1,6 +1,7 @@
 // Autoria de Lucas Soares Gonçalves RA 25009467
 part of '../../telas_autenticacao.dart';
 
+
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -204,14 +205,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   TextFormField(
                     controller: birthDateController,
                     enabled: !loading,
-                    keyboardType: TextInputType.datetime,
-                    validator: (value) {
-                      final data = value?.trim() ?? '';
-                      if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(data)) {
-                        return null;
-                      }
-                      return 'Informe a data no formato AAAA-MM-DD.';
-                    },
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [DateInputFormatter()],
+                    validator: validateBirthDate,
                     decoration: const InputDecoration(
                       labelText: 'Data de nascimento',
                       hintText: 'AAAA-MM-DD',
@@ -402,4 +398,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
     );
   }
+}
+
+class DateInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final limited = digits.length > 8 ? digits.substring(0, 8) : digits;
+
+    final buffer = StringBuffer();
+    for (var i = 0; i < limited.length; i++) {
+      if (i == 4 || i == 6) buffer.write('-');
+      buffer.write(limited[i]);
+    }
+
+    final text = buffer.toString();
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
+
+String? validateBirthDate(String? value) {
+  final text = value?.trim() ?? '';
+  if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(text)) {
+    return 'Informe a data no formato AAAA-MM-DD.';
+  }
+  final parts = text.split('-').map(int.parse).toList();
+  final date = DateTime(parts[0], parts[1], parts[2]);
+  if (date.year != parts[0] || date.month != parts[1] || date.day != parts[2]) {
+    return 'Data inválida.';
+  }
+  if (date.isAfter(DateTime.now()) || parts[0] < 1900) {
+    return 'Data fora do intervalo permitido.';
+  }
+  return null;
 }
