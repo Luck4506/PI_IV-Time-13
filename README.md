@@ -135,7 +135,7 @@ Substitua `ID_DO_SIMULADOR` pelo ID exibido para o iPhone marcado como simulador
 
 - **Cadastro e login.** Use um endereço de e-mail ao qual tenha acesso. Na data de nascimento, digite ano, mês e dia apenas com números. O aplicativo adiciona os traços. Confirme o cadastro com o código recebido e entre. A tela **Esqueci minha senha** envia um código para redefinir a senha.
 - **Aluno.** Abra **Trilha** para iniciar o diagnóstico ou praticar por disciplina. As questões vêm do Neo4j Aura. Respostas e leituras são salvas no MongoDB Atlas.
-- **Professor.** No cadastro, selecione uma escola ativa e informe um código de quatro dígitos, como `1234`. Depois de entrar, escolha sua disciplina, crie uma turma e compartilhe o código de matrícula. Use **Turmas** e **Relatórios** para acompanhar os alunos matriculados.
+- **Professor.** No cadastro, selecione uma escola ativa e informe o código de quatro dígitos fornecido pela equipe para aquela escola. Uma conta de professor já cadastrada entra com e-mail e senha. Depois de entrar, escolha sua disciplina, crie uma turma e compartilhe o código de matrícula. Use **Turmas** e **Relatórios** para acompanhar os alunos matriculados.
 
 Para encerrar, digite `q` no terminal do Flutter, `desativar` no terminal do Java e pressione **Ctrl+C** no terminal do Node. Os dados permanecem nos bancos em nuvem.
 

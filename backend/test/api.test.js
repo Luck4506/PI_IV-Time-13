@@ -7,8 +7,21 @@ import { atenderConexao, criarServidorTcp } from '../src/tcp-server.js';
 import { createApp } from '../src/app.js';
 import { criarServidorAuthHttp } from '../src/auth/http.js';
 import { ensureCollection } from '../src/mongo-collections.js';
+import { hashPassword } from '../src/security.js';
 import { enviarPedidoTcp } from '../src/tcp-client.js';
 import jwt from 'jsonwebtoken';
+
+const schools = [
+  {
+    _id: 'ESCOLA-ATIVA', nome: 'Escola Ativa', ativa: true,
+    codigoProfessorHash: await hashPassword('0456'),
+  },
+  {
+    _id: 'ESCOLA-DEMO-001', nome: 'Escola de Demonstração', ativa: true, demonstracao: true,
+    codigoProfessorHash: await hashPassword('0123'),
+  },
+  { _id: 'ESCOLA-SEM-CODIGO', nome: 'Escola sem Código', ativa: true },
+];
 
 function fixture() {
   const rows = [];
@@ -88,18 +101,15 @@ function fixture() {
         }
         if (name !== 'escolas') return {};
         return {
-          find() {
+          find(filter) {
             return {
               sort: () => ({
-                toArray: async () => [
-                  { _id: 'ESCOLA-ATIVA', nome: 'Escola Ativa' },
-                  { _id: 'ESCOLA-DEMO-001', nome: 'Escola de Demonstração', demonstracao: true },
-                ],
+                toArray: async () => schools.filter(school => matches(school, filter)),
               }),
             };
           },
-          async findOne({ _id, ativa }) {
-            return _id === 'ESCOLA-DEMO-001' && ativa === true ? { _id, ativa } : null;
+          async findOne(filter) {
+            return schools.find(school => matches(school, filter)) ?? null;
           },
         };
       },
@@ -271,6 +281,7 @@ test('listagem diferencia escolas da demonstração para o cadastro final', asyn
   assert.deepEqual(response.data.escolas, [
     { codigo: 'ESCOLA-ATIVA', nome: 'Escola Ativa' },
     { codigo: 'ESCOLA-DEMO-001', nome: 'Escola de Demonstração', demonstracao: true },
+    { codigo: 'ESCOLA-SEM-CODIGO', nome: 'Escola sem Código' },
   ]);
 }));
 test('professor é sempre educacional, sem ampliar permissões por escolher escola', async t => withServer(t, async ({ call, rows }) => {
@@ -585,6 +596,47 @@ async function portaLocal(t, server) {
   t.after(() => new Promise(resolve => server.close(resolve)));
   return server.address().port;
 }
+
+test('cadastro HTTP de professor exige o código da escola antes de criar a conta', async t => {
+  const messages = [];
+  await withServer(t, async ({ atender, rows, verificationRows }) => {
+    const port = await portaLocal(t, criarServidorAuthHttp(atender));
+    const register = body => fetch(`http://127.0.0.1:${port}/api/auth/cadastro`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...teacherRegistration, ...body }),
+    });
+
+    for (const invalid of [
+      { codProfessor: '1234' },
+      { codigoEscola: 'ESCOLA-ATIVA' },
+      { codigoEscola: 'ESCOLA-SEM-CODIGO' },
+    ]) {
+      const rejected = await register(invalid);
+      assert.equal(rejected.status, 409);
+      assert.deepEqual(await rejected.json(), {
+        erro: 'Código de professor inválido para a escola selecionada.',
+      });
+    }
+    assert.equal(rows.length, 0);
+    assert.equal(verificationRows.length, 0);
+    assert.equal(messages.length, 0);
+
+    // O zero inicial faz parte do código cadastrado.
+    const accepted = await register({});
+    assert.equal(accepted.status, 409);
+    assert.deepEqual(await accepted.json(), {
+      erro: '[EMAIL_CONFIRMACAO_ENVIADA] Confirme seu e-mail para continuar.',
+    });
+    assert.equal(rows[0].perfil, 'teacher');
+    assert.equal(rows[0].codigoEscola, teacherRegistration.codigoEscola);
+    assert.equal(rows[0].codProfessor, undefined);
+    assert.equal(verificationRows.length, 1);
+    assert.equal(messages.length, 1);
+  }, { ALLOW_TEACHER_REGISTRATION: 'true', EMAIL_VERIFICATION_REQUIRED: 'true' }, {
+    emailOptions: { sendMail: async email => { messages.push(email); } },
+  });
+});
 
 test('HTTP atende o contrato Java e o TCP do Node bloqueia cadastro e login diretos', async t => {
   await withServer(t, async ({ atender, rows }) => {

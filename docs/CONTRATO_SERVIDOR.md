@@ -51,7 +51,7 @@ Aluno educacional com turma:
 | `termosAceitos` | Booleano obrigatório, exatamente `true`. |
 | `codigoTurma` | Texto opcional somente para aluno educacional. Remove espaços das extremidades, converte para maiúsculas e exige 12 caracteres hexadecimais (`0–9`, `A–F`). |
 
-Campos textuais com números, booleanos, listas ou objetos são rejeitados, sem conversão automática. A obrigatoriedade dos campos é verificada pelo pedido. O Node verifica regras dependentes dos bancos, incluindo escola/turma, duplicidade, credenciais e registro do aceite dos termos; o Java não acessa os bancos.
+Campos textuais com números, booleanos, listas ou objetos são rejeitados, sem conversão automática. A obrigatoriedade dos campos é verificada pelo pedido. O Node verifica regras dependentes dos bancos, incluindo escola, código de professor, turma, duplicidade, credenciais e registro do aceite dos termos. No cadastro de professor, o Node confere o código armazenado pelo Atlas para a escola selecionada. O Java encaminha essas operações ao Node.
 
 ## Pedido de login
 

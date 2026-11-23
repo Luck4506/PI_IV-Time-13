@@ -111,8 +111,16 @@ export function mountAccountRoutes(app, { databases, config, sessions, classes, 
     }
 
     if (data.codigoEscola) {
-      const school = await schools.findOne({ _id: data.codigoEscola, ativa: true });
+      const school = await schools.findOne(
+        { _id: data.codigoEscola, ativa: true },
+        { projection: isTeacher ? { codigoProfessorHash: 1 } : { _id: 1 } },
+      );
       if (!school) throw new ApiError(400, 'Selecione uma escola ativa.');
+
+      // A escola autoriza o cadastro antes de salvar a conta ou enviar e-mail.
+      if (isTeacher && !(await verifyPassword(data.codProfessor, school.codigoProfessorHash))) {
+        throw new ApiError(403, 'Código de professor inválido para a escola selecionada.');
+      }
     }
 
     const turma = data.codigoTurma

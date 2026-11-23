@@ -40,6 +40,7 @@ Organiza as opções de cadastro e vincula as turmas a uma instituição.
 | Nome | Texto | Sim | Simples | Escola Horizonte | Nome vazio | Exibido na seleção de escola. |
 | Ativa | Booleano | Sim | Simples | Verdadeiro | “sim” como texto | O cadastro lista escolas ativas. |
 | Demonstração | Booleano | Não | Simples | Falso | “demo” como texto | Marcador legado. O aplicativo filtra as escolas marcadas como demonstração no cadastro. |
+| Código de professor protegido | Texto | Para escola que autoriza cadastros de professores | Simples | Hash scrypt com salt | Código de quatro dígitos em texto claro | O Node compara o código recebido com o hash da escola antes de cadastrar um professor. |
 
 ### 2.3. Turma
 
@@ -197,7 +198,7 @@ As referências de conta e turma usam BSON `ObjectId`. As datas usam BSON `Date`
 | Entidade | Coleção | Campos físicos e estratégia |
 | --- | --- | --- |
 | Usuário | `usuarios` | `_id`, `nome`, `email`, `perfil` (`student`, `teacher`), `senhaHash`, `anoEscolar`, `codigoEscola`, `termosAceitosEm`, `criadoEm`, `atualizadoEm`, `tokenVersion`. `codigoEscola` é texto. |
-| Escola | `escolas` | `_id` textual, `nome`, `ativa` e `demonstracao` opcional. |
+| Escola | `escolas` | `_id` textual, `nome`, `ativa`, `demonstracao` opcional e `codigoProfessorHash` opcional. |
 | Turma | `turmas` | `_id`, `nome`, `codigoEscola` textual, `codigo`, `criadoPor`, `criadoEm`, `docentes[]` e `conviteProfessor` opcional. Vínculos de docentes e convite são embutidos. |
 | Matrícula | `turmas_alunos` | `_id` é o ID do aluno. `turmaId` referencia a turma e `ingressouEm` marca o início do vínculo. |
 | Disciplina do professor | `professores_disciplinas` | `_id` é o ID do professor. `disciplina` é texto e `criadoEm` é a data da escolha. |
