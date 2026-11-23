@@ -152,7 +152,36 @@ void main() {
     final fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), 'Estudante Teste');
     await tester.enterText(fields.at(1), 'teste@example.com');
-    await tester.enterText(fields.at(2), '2009-08-15');
+    final birthDate = fields.at(2);
+    await tester.enterText(birthDate, '2009');
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: '20090',
+        selection: TextSelection.collapsed(offset: 5),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('2009-0'), findsOneWidget);
+
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: '2009-0',
+        selection: TextSelection.collapsed(offset: 5),
+      ),
+    );
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: '20090',
+        selection: TextSelection.collapsed(offset: 4),
+      ),
+    );
+    await tester.pump();
+    final birthDateInput = tester.widget<EditableText>(
+      find.descendant(of: birthDate, matching: find.byType(EditableText)),
+    );
+    expect(birthDateInput.controller.selection.baseOffset, 4);
+
+    await tester.enterText(birthDate, '20090231');
     await tester.enterText(fields.at(3), 'SenhaTeste123!');
     await tester.tap(find.byKey(const Key('school-year-select')));
     await tester.pumpAndSettle();
@@ -161,6 +190,19 @@ void main() {
     await tester.ensureVisible(find.byType(CheckboxListTile));
     await tester.tap(find.byType(CheckboxListTile));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Continuar e personalizar'));
+    await tester.tap(find.text('Continuar e personalizar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Informe uma data de nascimento válida.'), findsOneWidget);
+    expect(find.text('Confirme seu e-mail'), findsNothing);
+    await tester.ensureVisible(birthDate);
+    birthDateInput.controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: birthDateInput.controller.text.length,
+    );
+    await tester.enterText(birthDate, '2009a081599');
+    expect(find.text('2009-08-15'), findsOneWidget);
     await tester.ensureVisible(find.text('Continuar e personalizar'));
     await tester.tap(find.text('Continuar e personalizar'));
     await tester.pumpAndSettle();

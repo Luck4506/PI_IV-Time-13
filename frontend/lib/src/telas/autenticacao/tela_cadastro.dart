@@ -204,13 +204,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   TextFormField(
                     controller: birthDateController,
                     enabled: !loading,
-                    keyboardType: TextInputType.datetime,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: const [_BirthDateFormatter()],
                     validator: (value) {
-                      final data = value?.trim() ?? '';
-                      if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(data)) {
-                        return null;
+                      final dateText = value ?? '';
+                      if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(dateText)) {
+                        return 'Digite os oito números na ordem ano, mês e dia.';
                       }
-                      return 'Informe a data no formato AAAA-MM-DD.';
+
+                      // O DateTime ajusta dias fora do mês. A comparação
+                      // impede que uma data como 31 de fevereiro seja aceita.
+                      final date = DateTime.tryParse('${dateText}T00:00:00Z');
+                      if (date == null ||
+                          !date.toIso8601String().startsWith('${dateText}T')) {
+                        return 'Informe uma data de nascimento válida.';
+                      }
+                      return null;
                     },
                     decoration: const InputDecoration(
                       labelText: 'Data de nascimento',
@@ -317,6 +326,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: teacherCodeController,
                       enabled: !loading,
                       keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(4),
+                      ],
                       validator: (value) =>
                           RegExp(r'^[0-9]{4}$').hasMatch(value?.trim() ?? '')
                           ? null
@@ -401,5 +414,48 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
     );
+  }
+}
+
+class _BirthDateFormatter extends TextInputFormatter {
+  const _BirthDateFormatter();
+
+  static final _digitLimit = LengthLimitingTextInputFormatter(
+    8,
+    maxLengthEnforcement: MaxLengthEnforcement.enforced,
+  );
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (!newValue.composing.isCollapsed) return newValue;
+
+    final digitsOnly = FilteringTextInputFormatter.digitsOnly;
+    final previous = digitsOnly.formatEditUpdate(oldValue, oldValue);
+    final input = digitsOnly.formatEditUpdate(oldValue, newValue);
+    var formatted = _digitLimit.formatEditUpdate(previous, input);
+    if (identical(formatted, previous)) return oldValue;
+
+    // Inserir do fim para o início mantém as posições dos grupos de dígitos.
+    // O próprio Flutter ajusta o cursor e a seleção ao inserir os traços.
+    if (formatted.text.length > 6) {
+      formatted = formatted.replaced(const TextRange.collapsed(6), '-');
+    }
+    if (formatted.text.length > 4) {
+      formatted = formatted.replaced(const TextRange.collapsed(4), '-');
+    }
+
+    // Ao apagar um traço, o cursor passa para antes dele para poder
+    // continuar apagando os dígitos.
+    if (formatted.text == oldValue.text &&
+        newValue.text.length == oldValue.text.length - 1 &&
+        oldValue.selection.isCollapsed &&
+        newValue.selection.isCollapsed &&
+        newValue.selection.start < oldValue.selection.start) {
+      return formatted.copyWith(selection: newValue.selection);
+    }
+    return formatted;
   }
 }

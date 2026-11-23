@@ -111,6 +111,11 @@ void main() {
       find.text('Professores sempre usam uma conta educacional.'),
       findsOneWidget,
     );
+    final code = find.widgetWithText(TextFormField, 'Código de professor');
+    await tester.ensureVisible(code);
+    await tester.enterText(code, '00a421');
+    expect(find.text('0042'), findsOneWidget);
+
     await tap(tester, find.byType(CheckboxListTile));
     await tap(tester, find.text('Continuar'));
     expect(find.text('Preencha este campo.'), findsOneWidget);
