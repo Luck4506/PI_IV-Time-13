@@ -25,11 +25,25 @@ Os servidores Node.js e Java rodam no computador de quem está avaliando. O apli
 
 ### 1. Baixar e extrair a entrega
 
-1. Abra a página do **Release** no GitHub com a conta que tem acesso ao repositório. Em **Assets**, baixe **Source code (zip)**.
+1. Entre no GitHub com uma conta que tenha acesso ao repositório. Na página do projeto, abra **Releases** e selecione o Release indicado pela equipe para a correção. Em **Assets**, baixe **Source code (zip)**.
 2. Extraia o ZIP inteiro. A **raiz do projeto** é a pasta extraída que contém `pom.xml`, `backend/` e `frontend/`. Use essa pasta como ponto de partida em cada nova janela de terminal.
 3. Confira se o arquivo `backend/.env` veio no ZIP. Ele já contém a configuração dos bancos e do e-mail. No Finder do macOS, pressione **⌘ + Shift + .** para mostrar arquivos ocultos, se necessário.
 
 ### 2. Preparar o computador
+
+#### Rede para acessar os bancos
+
+O computador que roda o Node.js precisa de acesso à internet e a rede deve permitir **conexões TCP de saída** para os bancos do projeto.
+
+| Serviço | Porta TCP de saída |
+| --- | --- |
+| MongoDB Atlas | `27017` |
+| Neo4j Aura | `7687` |
+
+Em testes da equipe, o acesso aos bancos pela rede da PUC-Campinas falhou em algumas tentativas. Se isso acontecer, tente em outra rede, como a internet compartilhada pelo celular, e repita o teste `db:check` do passo 3.
+
+Obs: A rede da PUC as vezes bloqueia o acesso aos bancos de dados, se isso acontecer, por favor, utilize outra rede.
+
 
 #### Ferramentas dos dois sistemas
 
@@ -50,7 +64,7 @@ flutter --version
 
 #### Windows ou macOS com Android
 
-1. Instale o **Android Studio**. No **SDK Manager**, instale o Android SDK, **Build-Tools**, **Command-line Tools**, **Platform-Tools** e **Android Emulator**. Se a compilação solicitar componentes adicionais, instale a versão indicada do **NDK (Side by side)** ou do **CMake** pelo mesmo painel.
+1. Instale o **Android Studio**. No **SDK Manager**, instale a **SDK Platform do Android 16 (API 36)**, o **Android SDK Build-Tools 36.0.0**, **Command-line Tools**, **Platform-Tools** e **Android Emulator**. Se a compilação solicitar componentes adicionais, instale a versão indicada do **NDK (Side by side)** ou do **CMake** pelo mesmo painel.
 2. Abra **Device Manager**, crie um dispositivo virtual e inicie o emulador.
 3. No terminal, execute os comandos abaixo. Revise as licenças do SDK caso sejam apresentadas e confira se a seção **Android toolchain** está pronta.
 
@@ -69,7 +83,7 @@ Se o emulador não iniciar ou o Flutter apontar ferramentas pendentes, siga o [g
 
 ### 3. Iniciar o Node.js
 
-No primeiro terminal, aberto na raiz do projeto, rode a sequência do seu sistema. Aguarde cada comando terminar antes de rodar o próximo. Prossiga para a inicialização se `db:check` mostrar `mongodb: ok` e `neo4j: ok` na saída JSON.
+No primeiro terminal, aberto na raiz do projeto, rode um comando por vez. Use a mesma rede em que fará a avaliação. Só inicie o Node quando `db:check` terminar com sucesso e mostrar `"mongodb": "ok"` e `"neo4j": "ok"` na saída JSON. Se o teste falhar, consulte a seção **Se algo falhar** antes de prosseguir.
 
 **Windows — PowerShell**
 
@@ -144,9 +158,10 @@ Para encerrar, digite `q` no terminal do Flutter, `desativar` no terminal do Jav
 | Sintoma | O que conferir |
 | --- | --- |
 | O terminal não encontra uma ferramenta | Abra uma janela nova após a instalação. Verifique o `PATH` e, para o Maven, confira a JDK em `mvn -v`. |
-| O teste dos bancos falha | Confira se está em `backend/`, se o `.env` que veio no ZIP está presente e se a rede consegue acessar o Atlas e o Aura. |
+| O teste dos bancos falha | Confira se está em `backend/` e se o `.env` do ZIP está presente. Verifique se a rede permite as conexões de saída indicadas no passo 2. Se estiver na rede da PUC, teste em outra rede e rode `db:check` novamente. |
 | Um servidor informa que a porta está ocupada | Verifique se já existe outra cópia do projeto rodando. As portas esperadas são `3000` para o Java e `3001` e `3002` para o Node. |
 | O emulador não aparece em `flutter devices` | Inicie o dispositivo virtual e aguarde a tela inicial. Rode `flutter doctor` para conferir a configuração da plataforma. |
+| O Xcode falha ao assinar o app com `resource fork, Finder information, or similar detritus not allowed` | Extraia o ZIP em uma pasta local fora do iCloud Drive e de outras pastas sincronizadas. Repita o passo 5 a partir dessa nova cópia. [Erro de assinatura no Xcode](https://developer.apple.com/library/archive/qa/qa1940/_index.html) |
 | O cadastro ou login mostra **Serviço indisponível** | Confira as mensagens de inicialização nos dois terminais, a URL `http://127.0.0.1:3001` no comando do Java e os endereços usados no comando do Flutter. Veja o teste do Node abaixo. |
 | O código de confirmação não chega | Confira a caixa de spam e use **Reenviar código**. Se continuar falhando, confira o terminal do Node no momento da tentativa. |
 
