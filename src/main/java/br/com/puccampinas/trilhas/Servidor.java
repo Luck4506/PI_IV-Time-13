@@ -4,6 +4,7 @@ package br.com.puccampinas.trilhas;
 
 import java.util.*;
 
+// Inicia o servidor TCP e controla seu encerramento pelo terminal.
 public class Servidor {
 
     public static final String PORTA_PADRAO = "3000";
@@ -15,12 +16,15 @@ public class Servidor {
             return;
         }
 
+        // Usa a porta padrão, a menos que outra seja informada na linha de comando.
         String porta = Servidor.PORTA_PADRAO;
 
         if(args.length == 1) porta = args[0];
 
+        // Compartilha a lista de conexões ativas com a aceitadora e as supervisoras.
         ArrayList<Parceiro> usuarios = new ArrayList<Parceiro>();
 
+        // Inicia a escuta em outra thread para manter o terminal disponível.
         AceitadoraDeConexao aceitadoraDeConexao = null;
         try {
             aceitadoraDeConexao = new AceitadoraDeConexao(porta, usuarios);
@@ -43,6 +47,7 @@ public class Servidor {
             catch(Exception erro) {}
 
             if(comando.toLowerCase().equals("desativar")) {
+                // Fecha as conexões ativas antes de encerrar o processo.
                 synchronized(usuarios) {
                     for(Parceiro usuario : usuarios) {
                         try {

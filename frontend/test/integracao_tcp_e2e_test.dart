@@ -1,6 +1,6 @@
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
-import 'api_test_support.dart';
+import 'node_bridge_test_support.dart';
 
 void main() {
   test('Cliente Dart consulta saúde e executa o ciclo da conta via TCP',
@@ -38,7 +38,7 @@ void main() {
       expect(
           (await api.enviarTcp('GET', perfil, token: sessao))['status'], 401);
     }
-  });
+  }, skip: motivoParaPularPonteNode());
 
   suiteNode('integracao-tcp-e2e.test.js');
 }

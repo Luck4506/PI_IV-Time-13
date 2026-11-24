@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
-import 'api_test_support.dart';
+import 'node_bridge_test_support.dart';
 
 Json _lerParte(String parte) =>
     jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parte))))
@@ -25,7 +25,7 @@ void main() {
     expect(payload['sub'], dados['usuario']['id']);
     expect((payload['exp'] as int) - (payload['iat'] as int), 12 * 3600);
     expect(payload['v'], 0);
-  });
+  }, skip: motivoParaPularPonteNode());
 
   suiteNode('seguranca-sessao.test.js');
 }

@@ -6,6 +6,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 
+// Escuta a porta TCP e entrega cada conexão a uma supervisora em uma thread própria.
 public class AceitadoraDeConexao extends Thread {
 
     private ServerSocket pedido;
@@ -17,6 +18,7 @@ public class AceitadoraDeConexao extends Thread {
 
         if(porta == null) throw new Exception("Porta ausente.");
 
+        // Abre a porta em que o servidor recebe as conexões do aplicativo.
         try {
             this.pedido = new ServerSocket(Integer.parseInt(porta));
         }
@@ -34,6 +36,7 @@ public class AceitadoraDeConexao extends Thread {
         for(;;) {
             Socket conexao = null;
             try {
+                // Aguarda uma nova conexão antes de iniciar o atendimento.
                 conexao = this.pedido.accept();
             }
             catch(Exception erro) {
@@ -46,6 +49,7 @@ public class AceitadoraDeConexao extends Thread {
             }
             catch(Exception erro) {}
 
+            // O atendimento roda em paralelo enquanto esta thread aguarda outros clientes.
             supervisoraDeConexao.start();
         }
     }

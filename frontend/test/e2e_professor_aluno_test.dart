@@ -1,6 +1,6 @@
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
-import 'api_test_support.dart';
+import 'node_bridge_test_support.dart';
 
 Future<String> _registrar(ApiTeste api, Json corpo) async {
   final resposta =
@@ -57,7 +57,7 @@ void main() {
         metodo: 'DELETE', token: aluno);
     expect(saiu['status'], 204);
     expect((await api.chamar(caminho, token: aluno))['dados']['turma'], isNull);
-  });
+  }, skip: motivoParaPularPonteNode());
 
   suiteNode('e2e-professor-aluno.test.js');
 }

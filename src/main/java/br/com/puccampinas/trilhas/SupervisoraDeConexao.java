@@ -11,6 +11,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
+// Atende uma conexão do aplicativo e coordena os pedidos de cadastro e login.
 public class SupervisoraDeConexao extends Thread {
 
     private Parceiro usuario;
@@ -40,6 +41,7 @@ public class SupervisoraDeConexao extends Thread {
 
     public void run() {
 
+        // Prepara a saída e a entrada de texto em UTF-8 para a troca de JSON.
         BufferedWriter transmissor;
         try {
             transmissor = new BufferedWriter(
@@ -66,6 +68,7 @@ public class SupervisoraDeConexao extends Thread {
         }
 
         try {
+            // Reúne o socket e os streams em um Parceiro para ler e responder ao cliente.
             this.usuario = new Parceiro(this.conexao,
                                         receptor,
                                         transmissor);
@@ -73,6 +76,7 @@ public class SupervisoraDeConexao extends Thread {
         catch(Exception erro) {}
 
         try {
+            // Registra o parceiro na lista compartilhada usada ao desativar o servidor.
             synchronized(this.usuarios) {
                 this.usuarios.add(this.usuario);
             }
@@ -89,6 +93,7 @@ public class SupervisoraDeConexao extends Thread {
                     RespostaOperacao resultado;
 
                     try {
+                        // Interpreta o JSON recebido e valida os campos do pedido.
                         Comunicado pedidoRecebido = conversor.converterPedido(comunicado);
 
                         // Cada pedido segue para sua rota HTTP; o Java aguarda o resultado do Node.
@@ -112,6 +117,7 @@ public class SupervisoraDeConexao extends Thread {
                         resultado = new RespostaOperacao(false, "VALIDACAO_INVALIDA", erro.getMessage(), null);
                     }
 
+                    // Converte o resultado em JSON e envia uma linha de resposta ao aplicativo.
                     String respostaJson = new ConversorRespostaNode().converterParaJson(resultado);
                     usuario.receba(respostaJson);
                 }

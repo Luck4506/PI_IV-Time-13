@@ -1,6 +1,6 @@
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
-import 'api_test_support.dart';
+import 'node_bridge_test_support.dart';
 
 void main() {
   final campos = <String, List<(Object?, int)>>{
@@ -73,7 +73,7 @@ void main() {
           }
         });
       }
-    });
+    }, skip: motivoParaPularPonteNode());
   }
 
   suiteNode('caixa-preta-cadastro.test.js');
